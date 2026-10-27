@@ -1,0 +1,14 @@
+{
+    "appearance": {
+        "transparency": {
+            "enabled": true
+        }
+    },
+    "general": {
+        "language": ""
+    },
+    "services": {
+        "dataUnits": "Decimal",
+        "weatherUnits": "Celsius"
+    }
+}

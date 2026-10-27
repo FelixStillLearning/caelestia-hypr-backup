@@ -1,0 +1,3 @@
+return {
+    workspaceSwipeFingers = 3,
+}
