@@ -1,38 +1,70 @@
 #!/usr/bin/env python3
-"""Suara Jarvis (Piper TTS offline + efek gema).
+"""Asisten suara Jarvis (Piper TTS offline + efek gema, poni di jarvis-island).
 
   jarvis say "teks"          ucapkan teks
-  jarvis greet               sambutan login
-  jarvis brief               jam, cuaca, baterai, lagu yang diputar (Super+J)
-  jarvis watch               daemon: baterai, charger, profil daya, suhu, RAM, disk,
-                             monitor, headphone, Bluetooth, lock, shutdown, info jam
+  jarvis greet               sambutan login (login pertama hari itu: briefing pagi)
+  jarvis brief               jam, cuaca, baterai, lagu, progres skripsi (Super+J)
+  jarvis watch               daemon: baterai, profil daya, suhu, RAM, disk, perangkat,
+                             lock, shutdown, info jam, notifikasi penting, baterai HP
+  jarvis listen              daemon: "Hey Jarvis", perintah suara, dan ngobrol (Claude Code)
+  jarvis ask                 mulai mendengar tanpa wake word (Super+Shift+J)
   jarvis done STATUS PID CMD dipanggil fish saat perintah lama selesai
+
+Pengaturan pribadi (token, kalender, tanggal seminar): ~/.config/jarvis/config.json
 """
+import array
 import fcntl
 import json
 import os
+import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 import threading
 import time
 import urllib.request
+import wave
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 HOME = Path.home()
-PIPER = HOME / ".local/share/piper/venv/bin/piper"
+VENV = HOME / ".local/share/piper/venv"
+PIPER = VENV / "bin/piper"
 VOICE = HOME / ".local/share/piper/voices/jarvis-high.onnx"
+CONFIG = HOME / ".config/jarvis/config.json"
+STATE = Path(os.environ.get("XDG_STATE_HOME", HOME / ".local/state")) / "jarvis"
 FX = "highpass=f=120,aecho=0.8:0.6:40|70:0.25|0.15,volume=1.2"
 PS = Path("/sys/class/power_supply")
 RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
-LOW = (20, 10, 5)            # persen baterai, masing-masing sekali per sesi tidak dicas
-QUIET = (22, 7)              # jam tenang: info jam dan kabar non-darurat tidak diucapkan
+SPEAKING = RUNTIME / "jarvis-speaking"
+LISTEN_PID = RUNTIME / "jarvis-listen.pid"
+LOW = (20, 10, 5)            # persen baterai laptop, masing-masing sekali per sesi tidak dicas
+PHONE_LOW = 15               # persen baterai HP
+QUIET = (22, 7)              # jam tenang: kabar non-darurat tidak diucapkan
 TEMP_MAX = 90                # derajat C, CPU (k10temp)
-RAM_MIN = 0.07               # sisa RAM minimal
-DISK_MIN = 0.10              # sisa disk minimal
+RAM_MIN = 0.07
+DISK_MIN = 0.10
 COOLDOWN = 30 * 60           # detik antar peringatan sistem yang sama
+WAKE_THRESHOLD = 0.5         # skor openWakeWord "hey jarvis"
+WHISPER_MODEL = "small"      # multibahasa, cukup akurat untuk bahasa Indonesia
+# kosakata yang sering diucapkan, supaya Whisper mengeja nama aplikasi dengan benar
+WHISPER_HINT = ("Jarvis, buka Discord, Spotify, Obsidian, Zen, VS Code, terminal. "
+                "Lagu berikutnya, putar lagu, kunci laptop, cari HP. Open Discord, next song.")
+PERSONA = ("You are JARVIS, the calm, witty British AI butler of the user, whom you call 'sir'. "
+           "He may speak Indonesian or English; always answer in English. Reply in at most two short "
+           "spoken sentences, no lists, no markdown, no emoji.")
 
+
+def config():
+    try:
+        return json.loads(CONFIG.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+# ---------- suara ----------
 
 def render(text, out):
     with tempfile.TemporaryDirectory() as d:
@@ -41,25 +73,52 @@ def render(text, out):
         subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", raw, "-af", FX, out], check=True)
 
 
-def play(wav):
-    # kunci supaya dua ucapan tidak tumpang tindih
+def envelope(wav):
+    """Amplitudo per 50 ms (0..1) untuk orb di poni."""
+    with wave.open(str(wav)) as w:
+        rate, frames = w.getframerate(), w.readframes(w.getnframes())
+    pcm = array.array("h", frames)
+    step = rate // 20
+    rms = [(sum(x * x for x in pcm[i:i + step:4]) / max(1, len(pcm[i:i + step:4]))) ** 0.5
+           for i in range(0, len(pcm), step)]
+    peak = max(rms or [1]) or 1
+    return [round(r / peak, 2) for r in rms], len(pcm) * 1000 // rate
+
+
+def island(*args):
+    subprocess.run(["qs", "-c", "jarvis-island", "ipc", "call", "island", *map(str, args)],
+                   capture_output=True, timeout=3)
+
+
+def play(wav, text=""):
+    # kunci supaya dua ucapan tidak tumpang tindih; penanda SPEAKING membuat pendengar tidak salah dengar
     with open(RUNTIME / "jarvis.lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        subprocess.run(["pw-play", wav], check=False)
+        SPEAKING.touch()
+        try:
+            if text:
+                env, ms = envelope(wav)
+                island("speak", text, ",".join(map(str, env)), ms)
+            subprocess.run(["pw-play", str(wav)], check=False)
+        finally:
+            SPEAKING.unlink(missing_ok=True)
 
 
 def say(text):
     with tempfile.TemporaryDirectory() as d:
         render(text, f"{d}/out.wav")
-        play(f"{d}/out.wav")
+        play(f"{d}/out.wav", text)
 
 
 def say_async(text):
     threading.Thread(target=say, args=(text,), daemon=True).start()
 
 
-def run(*cmd):
-    return subprocess.run(cmd, capture_output=True, text=True).stdout.strip()
+def run(*cmd, timeout=10):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
 
 
 def read(path):
@@ -69,17 +128,19 @@ def read(path):
         return ""
 
 
-def battery():
-    return int(read(PS / "BAT0/capacity") or 0), read(PS / "ACAD/online") == "1"
-
-
-def shell(target, fn):
-    return run("qs", "-c", "caelestia", "ipc", "call", target, fn)
+def shell(target, fn, *args):
+    return run("qs", "-c", "caelestia", "ipc", "call", target, fn, *args)
 
 
 def quiet():
     h = time.localtime().tm_hour
     return h >= QUIET[0] or h < QUIET[1] or shell("notifs", "isDndEnabled") == "true"
+
+
+# ---------- info ----------
+
+def battery():
+    return int(read(PS / "BAT0/capacity") or 0), read(PS / "ACAD/online") == "1"
 
 
 def part_of_day():
@@ -95,13 +156,10 @@ def spoken_time(t):
     return f"{hour} {t.tm_min:02d} {ampm}" if t.tm_min >= 10 else f"{hour} oh {t.tm_min} {ampm}"
 
 
-def greet():
-    say(f"Good {part_of_day()}, sir. Welcome back. All systems are online.")
-
-
 def weather():
+    city = config().get("city", "")
     try:
-        with urllib.request.urlopen("https://wttr.in/?format=j1", timeout=4) as r:
+        with urllib.request.urlopen(f"https://wttr.in/{urllib.request.quote(city)}?format=j1", timeout=4) as r:
             cur = json.load(r)["current_condition"][0]
         return f"It is {cur['temp_C']} degrees outside, {cur['weatherDesc'][0]['value'].strip().lower()}."
     except Exception:
@@ -125,6 +183,107 @@ def now_playing():
     return ""
 
 
+def todoist_today():
+    token = config().get("todoist_token")
+    if not token:
+        return ""
+    req = urllib.request.Request("https://api.todoist.com/api/v1/tasks/filter?query=today%20%7C%20overdue",
+                                 headers={"Authorization": f"Bearer {token}"})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r:
+            data = json.load(r)
+        tasks = [t["content"] for t in data.get("results", data if isinstance(data, list) else [])]
+    except Exception:
+        return ""
+    if not tasks:
+        return "Your task list is clear for today."
+    first = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", tasks[0])  # buang link markdown
+    return f"You have {len(tasks)} task{'s' if len(tasks) > 1 else ''} today, starting with {first}."
+
+
+def ics_events_today(ics):
+    """Acara hari ini dari file iCal. ponytail: acara berulang (RRULE) tidak dihitung."""
+    today = date.today().strftime("%Y%m%d")
+    events, cur = [], None
+    for line in ics.replace("\r\n ", "").splitlines():
+        if line == "BEGIN:VEVENT":
+            cur = {}
+        elif line == "END:VEVENT" and cur is not None:
+            if cur.get("start", "").startswith(today):
+                events.append(cur)
+            cur = None
+        elif cur is not None and ":" in line:
+            key, val = line.split(":", 1)
+            if key.startswith("DTSTART"):
+                if val.endswith("Z"):  # UTC -> waktu lokal
+                    val = datetime.strptime(val, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc) \
+                        .astimezone().strftime("%Y%m%dT%H%M%S")
+                cur["start"] = val
+            elif key == "SUMMARY":
+                cur["title"] = val.replace("\\,", ",")
+    return sorted(events, key=lambda e: e["start"])
+
+
+def calendar_today():
+    url = config().get("calendar_ics_url")
+    if not url:
+        return ""
+    try:
+        with urllib.request.urlopen(url, timeout=6) as r:
+            events = ics_events_today(r.read().decode(errors="replace"))
+    except Exception:
+        return ""
+    if not events:
+        return "Your calendar is free today."
+    e = events[0]
+    when = ""
+    if "T" in e["start"]:
+        h, m = int(e["start"][9:11]), int(e["start"][11:13])
+        when = " at " + spoken_time(time.struct_time((2000, 1, 1, h, m, 0, 0, 1, 0)))
+    more = f", and {len(events) - 1} more after that" if len(events) > 1 else ""
+    return f"Your first event is {e.get('title', 'untitled')}{when}{more}."
+
+
+def thesis_today():
+    cfg = config()
+    parts = []
+    vault = cfg.get("thesis_dir")
+    if vault and Path(vault).is_dir():
+        top = run("git", "-C", vault, "rev-parse", "--show-toplevel")
+        if top:
+            base = run("git", "-C", top, "rev-list", "-1", "--before=midnight", "HEAD") or \
+                run("git", "-C", top, "rev-list", "--max-parents=0", "HEAD").splitlines()[0]
+            diff = run("git", "-C", top, "diff", "--word-diff=porcelain", base, "--", vault)
+            words = sum(len(l[1:].split()) for l in diff.splitlines() if l.startswith("+") and not l.startswith("+++"))
+            if words:
+                parts.append(f"You wrote {words} words on your thesis today.")
+    parts.append(seminar_countdown())
+    return " ".join(p for p in parts if p)
+
+
+def seminar_countdown():
+    try:
+        days = (date.fromisoformat(config().get("seminar_date", "")) - date.today()).days
+    except ValueError:
+        return ""
+    if days > 0:
+        return f"{days} day{'s' if days > 1 else ''} until your seminar."
+    return "Your seminar is today. Good luck, sir." if days == 0 else ""
+
+
+def greet():
+    STATE.mkdir(parents=True, exist_ok=True)
+    stamp = STATE / "last-greet"
+    first_today = read(stamp) != date.today().isoformat()
+    stamp.write_text(date.today().isoformat())
+    if not first_today:
+        say(f"Good {part_of_day()}, sir. Welcome back.")
+        return
+    lines = [f"Good {part_of_day()}, sir. All systems are online.", weather(), todoist_today(),
+             calendar_today(), seminar_countdown()]
+    say(" ".join(l for l in lines if l))
+
+
 def brief():
     pct, plugged = battery()
     lines = [
@@ -132,6 +291,7 @@ def brief():
         weather(),
         f"Battery at {pct} percent{', charging' if plugged else ''}.",
         now_playing(),
+        thesis_today(),
     ]
     say(" ".join(l for l in lines if l))
 
@@ -153,7 +313,7 @@ def done(status, pid, cmd):
     say(f"The {name} command has finished, sir." if status == "0" else f"The {name} command has failed, sir.")
 
 
-# ---------- daemon ----------
+# ---------- daemon pemantau ----------
 
 def cpu_temp():
     for h in Path("/sys/class/hwmon").iterdir():
@@ -192,6 +352,22 @@ def monitors():
         return 0
 
 
+def phone():
+    """(id, nama) HP pertama yang tersambung lewat KDE Connect."""
+    ids = run("kdeconnect-cli", "-a", "--id-name-only").splitlines()
+    return tuple(ids[0].split(" ", 1)) if ids and " " in ids[0] else (None, None)
+
+
+def phone_battery(dev):
+    path = f"/modules/kdeconnect/devices/{dev}/battery"
+    get = lambda p: run("busctl", "--user", "get-property", "org.kde.kdeconnect", path,
+                        "org.kde.kdeconnect.device.battery", p).split()
+    try:
+        return int(get("charge")[1]), get("isCharging")[1] == "true"
+    except (IndexError, ValueError):
+        return None, None
+
+
 def farewell_guard():
     """Tahan shutdown sebentar (inhibitor delay) supaya 'Goodbye' sempat diucapkan."""
     wav = RUNTIME / "jarvis-goodbye.wav"
@@ -208,8 +384,66 @@ def farewell_guard():
             return
 
 
+def classify(app, summary, body, entry):
+    """Notifikasi penting -> kalimat (hanya pengirim, isi pesan tidak dibacakan)."""
+    text = f"{app} {summary} {body} {entry}".lower()
+    sender = re.sub(r"^\s*whatsapp\s*[:\-]\s*", "", summary, flags=re.I)
+    sender = re.sub(r"\s*\(\d+ (messages|pesan)\)", "", sender, flags=re.I).strip()
+    if "kde connect" in text or "kdeconnect" in text:
+        if re.search(r"\b(incoming call|calling|panggilan masuk|memanggil)\b", text):
+            return "call", f"Incoming call from {sender or 'an unknown number'}, sir."
+        if re.search(r"\b(sms|messages?:)\b", text) and "whatsapp" not in text:
+            return "sms", f"New text message from {sender}, sir."
+    if "whatsapp" in text:
+        return "msg", f"Message from {sender} on WhatsApp, sir."
+    if app.lower() in ("equibop", "discord", "vesktop") or "equibop" in entry.lower():
+        if " (#" in summary or "#" in summary:  # pesan server, bukan DM
+            return None
+        return "msg", f"Discord message from {summary.split(' (')[0]}, sir."
+    if "mail.google.com" in text or "gmail" in text:
+        return "msg", f"New email from {summary}, sir."
+    return None
+
+
+def notification_guard():
+    mon = subprocess.Popen(["dbus-monitor", "--session",
+                            "type='method_call',interface='org.freedesktop.Notifications',member='Notify'"],
+                           stdout=subprocess.PIPE, text=True)
+    strings, in_call, depth = [], False, 0
+    for line in mon.stdout:
+        if line.startswith("method call") and "member=Notify" in line:
+            if in_call:
+                handle(strings)
+            strings, in_call = [], True
+            continue
+        if not in_call:
+            continue
+        m = re.match(r'(\s*)string "(.*)"$', line.rstrip("\n"))
+        if m:
+            strings.append((len(m.group(1)), m.group(2)))
+        elif line.startswith("   int32"):  # akhir argumen Notify
+            handle(strings)
+            in_call = False
+
+
+def handle(strings):
+    top = [s for indent, s in strings if indent == 3]
+    if len(top) < 4:
+        return
+    app, _icon, summary, body = top[:4]
+    nested = [s for indent, s in strings if indent > 3]
+    entry = nested[nested.index("desktop-entry") + 1] if "desktop-entry" in nested[:-1] else ""
+    hit = classify(app, summary, body, entry)
+    if not hit:
+        return
+    kind, sentence = hit
+    if kind == "call" or not quiet():
+        say_async(sentence)
+
+
 def watch():
     threading.Thread(target=farewell_guard, daemon=True).start()
+    threading.Thread(target=notification_guard, daemon=True).start()
     pct, plugged = battery()
     warned = {x for x in LOW if pct <= x}  # jangan langsung bicara saat login
     last_alert = {}
@@ -217,6 +451,7 @@ def watch():
     out, bt, mons = audio_out(), bt_devices(), monitors()
     locked = shell("lock", "isLocked") == "true"
     chimed = time.localtime().tm_hour
+    phone_warned, tick = False, 0
 
     def alert(key, text):
         if time.time() - last_alert.get(key, 0) > COOLDOWN:
@@ -225,6 +460,7 @@ def watch():
 
     while True:
         time.sleep(5)
+        tick += 1
 
         # baterai, charger, profil daya
         new_pct, new_plugged = battery()
@@ -266,6 +502,17 @@ def watch():
             say_async(f"{d} connected, sir.")
         bt = b
 
+        # baterai HP (KDE Connect), tiap menit
+        if tick % 12 == 0:
+            dev, name = phone()
+            if dev:
+                charge, charging = phone_battery(dev)
+                if charge is not None and charge <= PHONE_LOW and not charging and not phone_warned:
+                    phone_warned = True
+                    say_async(f"Your phone battery is at {charge} percent, sir.")
+                elif charging or (charge or 0) > PHONE_LOW:
+                    phone_warned = False
+
         # lock / unlock
         now_locked = shell("lock", "isLocked") == "true"
         if now_locked != locked:
@@ -280,13 +527,187 @@ def watch():
                 say_async(f"It is {spoken_time(t)}, sir.")
 
 
+# ---------- perintah suara ----------
+
+APPS = {  # kata kunci -> perintah
+    r"discord|di ?skor|diskor|disc ord": ["caelestia", "toggle", "communication"],
+    r"spotify|music|musik|lagu": ["caelestia", "toggle", "music"],
+    r"browser|zen|internet": ["zen-browser"],
+    r"vs ?code|visual studio|code|editor": ["code"],
+    r"obsidian|notes?|catatan": ["obsidian"],
+    r"terminal": ["foot"],
+    r"files?|file manager|folder": ["thunar"],
+    r"calculator|kalkulator": ["gnome-calculator"],
+}
+
+
+def command(text):
+    """Perintah tetap dua bahasa. Mengembalikan kalimat balasan, atau None kalau bukan perintah."""
+    t = text.lower().strip(" .!?")
+    t = re.sub(r"^(hey|hai|halo)?\s*jarvis[,.]?\s*", "", t)
+    if not t:
+        return "Yes, sir?"
+    if re.search(r"\b(never ?mind|cancel|batal|(nggak|gak|ga|tidak) jadi)\b", t):
+        return "Very well, sir."
+    if re.search(r"\b(find|cari|where is|di ?mana)\b.*\b(phone|hp|handphone|ponsel)\b", t):
+        dev, _ = phone()
+        if not dev:
+            return "I cannot reach your phone, sir."
+        run("kdeconnect-cli", "-d", dev, "--ring")
+        return "Ringing your phone now, sir."
+    m = re.search(r"\b(open|launch|start|buka|bukain|jalankan)\b\s+(.+)", t)
+    if m:
+        for pat, cmd in APPS.items():
+            if re.search(rf"\b({pat})\b", m.group(2)):
+                subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+                return "Right away, sir."
+    if re.search(r"\b(lock|kunci)\b", t):
+        threading.Timer(2.5, shell, ("lock", "lock")).start()
+        return "Locking the workstation, sir."
+    if re.search(r"\b(next|skip|berikutnya|selanjutnya|ganti lagu)\b", t):
+        shell("mpris", "next")
+        return "Next track, sir."
+    if re.search(r"\b(previous|sebelumnya)\b", t):
+        shell("mpris", "previous")
+        return "Previous track, sir."
+    if re.search(r"\b(pause|stop|jeda|hentikan)\b", t):
+        shell("mpris", "pause")
+        return "Paused, sir."
+    if re.search(r"\b(play|resume|putar|puterin|lanjutkan)\b", t):
+        shell("mpris", "play")
+        return "Playing, sir."
+    if re.search(r"\b(volume up|louder|keraskan|kerasin|naikkan|naikin)\b", t):
+        run("wpctl", "set-volume", "-l", "1.0", "@DEFAULT_AUDIO_SINK@", "10%+")
+        return "Volume up, sir."
+    if re.search(r"\b(volume down|quieter|kecilkan|kecilin|pelankan|turunkan|turunin)\b", t):
+        run("wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "10%-")
+        return "Volume down, sir."
+    if re.search(r"\b(what time|the time|jam berapa)\b", t):
+        return f"It is {spoken_time(time.localtime())}, sir."
+    if re.search(r"\b(brief|briefing|status|report|laporan|ringkasan)\b", t):
+        threading.Thread(target=brief, daemon=True).start()
+        return ""
+    return None
+
+
+def claude_reply(text, history):
+    exe = shutil.which("claude") or str(HOME / ".local/bin/claude")
+    convo = "".join(f"User: {u}\nJARVIS: {a}\n" for u, a in history[-3:])
+    now = datetime.now().strftime("%A %d %B %Y, %H:%M")
+    prompt = f"Current time: {now}.\n{convo}User: {text}\nJARVIS:"
+    out = run(exe, "-p", "--model", "haiku", "--tools", "", "--system-prompt", PERSONA, prompt, timeout=45)
+    return out.replace("*", "").strip() or "I am afraid my connection to the cloud failed, sir."
+
+
+def listen():
+    import numpy as np
+    from faster_whisper import WhisperModel
+    from openwakeword.model import Model
+
+    LISTEN_PID.write_text(str(os.getpid()))
+    wake = Model(wakeword_models=["hey_jarvis"], inference_framework="onnx")
+    stt = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
+    yes = RUNTIME / "jarvis-yes.wav"
+    if not yes.exists():
+        render("Yes, sir?", str(yes))
+    manual = threading.Event()
+    signal.signal(signal.SIGUSR1, lambda *_: manual.set())
+    history = []
+
+    rec = subprocess.Popen(["parec", "--raw", "--rate=16000", "--channels=1", "--format=s16le",
+                            "--latency-msec=80"], stdout=subprocess.PIPE)
+    CHUNK = 1280  # 80 ms
+
+    def chunk():
+        data = rec.stdout.read(CHUNK * 2)
+        return np.frombuffer(data, dtype=np.int16)
+
+    def level(a):
+        return float(np.sqrt(np.mean(a.astype(np.float32) ** 2))) if len(a) else 0.0
+
+    def drain():
+        """Buang audio yang tertampung selama Jarvis bicara (suaranya sendiri)."""
+        fd = rec.stdout.fileno()
+        os.set_blocking(fd, False)
+        try:
+            while os.read(fd, 65536):
+                pass
+        except BlockingIOError:
+            pass
+        finally:
+            os.set_blocking(fd, True)
+
+    ambient = 300.0  # perkiraan bising ruangan, diperbarui saat menunggu wake word
+
+    def record_utterance():
+        """Rekam sampai 0.8 detik hening setelah bicara, maksimal 10 detik."""
+        frames, spoke, silent = [], False, 0
+        for i in range(125):
+            a = chunk()
+            frames.append(a)
+            if level(a) > max(500, ambient * 3):
+                spoke, silent = True, 0
+            elif spoke:
+                silent += 1
+                if silent >= 10:
+                    break
+            elif i > 50:  # 4 detik tanpa suara
+                return None
+        return np.concatenate(frames).astype(np.float32) / 32768
+
+    while True:
+        a = chunk()
+        if len(a) < CHUNK:
+            time.sleep(1)
+            continue
+        if SPEAKING.exists():
+            wake.reset()
+            continue
+        ambient = 0.98 * ambient + 0.02 * level(a)
+        triggered = manual.is_set() or wake.predict(a).get("hey_jarvis", 0) > WAKE_THRESHOLD
+        if not triggered:
+            continue
+        manual.clear()
+        wake.reset()
+        play(str(yes), "Yes, sir?")
+        drain()
+        island("hear")
+        audio = record_utterance()
+        if audio is None:
+            island("idle")
+            continue
+        island("think")
+        segs, _ = stt.transcribe(audio, beam_size=1, vad_filter=True, initial_prompt=WHISPER_HINT)
+        text = " ".join(s.text for s in segs).strip()
+        if not text:
+            say("I did not catch that, sir.")
+            continue
+        reply = command(text)
+        if reply is None:
+            reply = claude_reply(text, history)
+            history.append((text, reply))
+        if reply:
+            say(reply)
+        else:
+            island("idle")
+
+
+def ask():
+    try:
+        os.kill(int(read(LISTEN_PID)), signal.SIGUSR1)
+    except (ValueError, OSError):
+        say("My listening module is offline, sir.")
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+    if cmd == "listen" and Path(sys.prefix).resolve() != VENV.resolve():
+        os.execv(str(VENV / "bin/python"), [str(VENV / "bin/python"), __file__, "listen"])
     if cmd == "say" and len(sys.argv) > 2:
         say(" ".join(sys.argv[2:]))
     elif cmd == "done" and len(sys.argv) > 3:
         done(sys.argv[2], sys.argv[3], " ".join(sys.argv[4:]))
-    elif cmd in ("greet", "brief", "watch", "battery"):
-        {"greet": greet, "brief": brief, "watch": watch, "battery": watch}[cmd]()
+    elif cmd in ("greet", "brief", "watch", "battery", "listen", "ask"):
+        {"greet": greet, "brief": brief, "watch": watch, "battery": watch, "listen": listen, "ask": ask}[cmd]()
     else:
         sys.exit(__doc__)

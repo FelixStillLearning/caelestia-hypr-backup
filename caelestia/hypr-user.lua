@@ -94,8 +94,10 @@ hl.config({ cursor = { no_hardware_cursors = 1 } })
 hl.on("hyprland.start", function()
     hl.exec_cmd("sleep 3; ~/.local/bin/jarvis greet")
     hl.exec_cmd("~/.local/bin/jarvis watch")
+    hl.exec_cmd("~/.local/bin/jarvis listen") -- "Hey Jarvis", perintah suara, ngobrol
 end)
 hl.bind("SUPER + J", hl.dsp.exec_cmd("~/.local/bin/jarvis brief"))
+hl.bind("SUPER + SHIFT + J", hl.dsp.exec_cmd("~/.local/bin/jarvis ask")) -- bicara tanpa "Hey Jarvis"
 
 -- KDE Connect: daemon + ikon di tray (kirim file, ring phone, dsb.)
 hl.on("hyprland.start", function()
@@ -113,3 +115,7 @@ for class, op in pairs({
     hl.window_rule({ match = { class = class, fullscreen = false }, opaque = false, opacity = op })
 end
 hl.window_rule({ match = { class = "mpv|vlc|celluloid|imv|org.gnome.Loupe" }, opaque = true })
+
+-- Poni Jarvis (Quickshell terpisah, ~/.config/quickshell/jarvis-island)
+hl.layer_rule({ match = { namespace = "jarvis-island" }, blur = true, ignore_alpha = 0.3, animation = "fade" })
+hl.on("hyprland.start", function() hl.exec_cmd("qs -c jarvis-island") end)
