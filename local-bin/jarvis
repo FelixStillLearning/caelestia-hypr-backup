@@ -567,28 +567,170 @@ APPS = {  # kata kunci -> perintah
     r"files?|file manager|folder": ["thunar"],
     r"calculator|kalkulator": ["gnome-calculator"],
 }
+SITES = {  # kata kunci -> alamat, dibuka di Zen
+    r"youtube|yutub": "https://youtube.com",
+    r"gmail|email|e-mail": "https://mail.google.com",
+    r"github": "https://github.com",
+    r"whatsapp|wa": "https://web.whatsapp.com",
+    r"scholar|google scholar": "https://scholar.google.com",   # yang lebih spesifik dulu
+    r"drive|google drive": "https://drive.google.com",
+    r"google": "https://google.com",
+    r"claude": "https://claude.ai",
+    r"chat ?gpt": "https://chatgpt.com",
+    r"instagram|ig": "https://instagram.com",
+}
+NUMBERS = {"satu": 1, "dua": 2, "tiga": 3, "empat": 4, "lima": 5, "enam": 6, "tujuh": 7, "delapan": 8,
+           "sembilan": 9, "sepuluh": 10, "sebelas": 11, "lima belas": 15, "dua puluh": 20, "tiga puluh": 30,
+           "empat puluh": 40, "empat puluh lima": 45, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+           "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30,
+           "forty five": 45, "a": 1, "an": 1, "se": 1}
+UNITS = {"detik": 1, "second": 1, "seconds": 1, "menit": 60, "minute": 60, "minutes": 60,
+         "jam": 3600, "hour": 3600, "hours": 3600}
+YES = re.compile(r"\b(ya|iya|iyah|yes|yeah|yep|oke|okay|ok|lanjut|betul|benar|boleh|sure|do it|go ahead)\b")
+pending = None   # aksi yang menunggu konfirmasi: (kalimat, perintah)
+timers = []
+
+
+def launch(cmd):
+    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def parse_duration(t):
+    """'10 menit', 'lima belas menit', 'setengah jam', '1 jam 30 menit' -> detik."""
+    if re.search(r"\b(setengah jam|half an hour|half hour)\b", t):
+        return 1800
+    total = 0
+    words = "|".join(sorted(map(re.escape, NUMBERS), key=len, reverse=True))
+    for num, unit in re.findall(rf"(\d+|{words})\s*-?\s*({'|'.join(UNITS)})\b", t):
+        total += (int(num) if num.isdigit() else NUMBERS[num]) * UNITS[unit]
+    return total
+
+
+def spoken_duration(sec):
+    parts = [(sec // 3600, "hour"), (sec % 3600 // 60, "minute"), (sec % 60, "second")]
+    return " ".join(f"{n} {u}{'s' if n > 1 else ''}" for n, u in parts if n)
+
+
+def timer_done(label):
+    run("notify-send", "-a", "Jarvis", "-u", "critical", "Timer selesai", label)
+    say(f"Sir, your {label} timer is up.")
+
+
+def spotify_uri(query):
+    """Lagu teratas dari Spotify Web API (butuh spotify_client_id/secret di config), atau None."""
+    cfg = config()
+    cid, secret = cfg.get("spotify_client_id"), cfg.get("spotify_client_secret")
+    if not cid or not secret:
+        return None, None
+    import base64
+    try:
+        auth = base64.b64encode(f"{cid}:{secret}".encode()).decode()
+        req = urllib.request.Request("https://accounts.spotify.com/api/token", data=b"grant_type=client_credentials",
+                                     headers={"Authorization": f"Basic {auth}"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            token = json.load(r)["access_token"]
+        req = urllib.request.Request("https://api.spotify.com/v1/search?type=track&limit=1&q="
+                                     + urllib.request.quote(query), headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            item = json.load(r)["tracks"]["items"][0]
+        return item["uri"], f"{item['name']} by {item['artists'][0]['name']}"
+    except Exception:
+        return None, None
+
+
+def spotify_open(uri):
+    if "org.mpris.MediaPlayer2.spotify" not in run("busctl", "--user", "--list", "--no-legend"):
+        launch(["caelestia", "toggle", "music"])
+        for _ in range(20):  # tunggu Spotify siap
+            time.sleep(0.5)
+            if "org.mpris.MediaPlayer2.spotify" in run("busctl", "--user", "--list", "--no-legend"):
+                time.sleep(1.5)
+                break
+    run("busctl", "--user", "call", "org.mpris.MediaPlayer2.spotify", "/org/mpris/MediaPlayer2",
+        "org.mpris.MediaPlayer2.Player", "OpenUri", "s", uri)
 
 
 def command(text):
-    """Perintah tetap dua bahasa. Mengembalikan kalimat balasan, atau None kalau bukan perintah."""
+    """Perintah tetap dua bahasa. Mengembalikan kalimat balasan, atau None kalau bukan perintah.
+    Balasan yang diakhiri "?" membuat Jarvis menunggu jawabanmu."""
+    global pending
     t = text.lower().strip(" .!?")
     t = re.sub(r"^(hey|hai|halo)?\s*jarvis[,.]?\s*", "", t)
+
+    if pending:  # jawaban untuk "Shall I ...?"
+        sentence, cmd = pending
+        pending = None
+        if YES.search(t) and not re.search(r"\b(no|nggak|gak|ga|tidak|jangan)\b", t):
+            threading.Timer(3, run, cmd).start()
+            return sentence
+        return "Very well, sir. Cancelled."
     if not t:
         return "Yes, sir?"
     if re.search(r"\b(never ?mind|cancel|batal|(nggak|gak|ga|tidak) jadi)\b", t):
         return "Very well, sir."
+
+    # matikan / restart, selalu dengan konfirmasi
+    if re.search(r"\b(shut ?down|power off|matikan (laptop|komputer|pc)|matiin (laptop|komputer|pc))\b", t):
+        pending = ("Shutting down, sir.", ("systemctl", "poweroff"))
+        return "Shall I shut down the laptop, sir?"
+    if re.search(r"\b(restart|reboot|mulai ulang)\b", t):
+        pending = ("Restarting, sir.", ("systemctl", "reboot"))
+        return "Shall I restart the laptop, sir?"
+
+    # timer
+    if re.search(r"\b(timer|ingatkan|ingetin|remind me|alarm|hitung mundur)\b", t):
+        sec = parse_duration(t)
+        if not sec:
+            return "For how long, sir?"
+        label = spoken_duration(sec)
+        tm = threading.Timer(sec, timer_done, (label,))
+        tm.daemon = True
+        tm.start()
+        timers.append(tm)
+        return f"Timer set for {label}, sir."
+
+    # putar lagu tertentu di Spotify
+    m = re.search(r"\b(putar|puterin|play|mainkan|setel|setelin)\b\s+(?:(?:lagu|song|the song)\s+)?(.+)", t)
+    if m and not re.fullmatch(r"(lagu|lagunya|musik|music|spotify|lagi|again|the music|lanjut)( lagi)?", m.group(2)) \
+            and not re.search(r"\b(next|previous|berikutnya|sebelumnya|selanjutnya)\b", t):
+        query = re.sub(r"\b(di|on|in) spotify\b", "", m.group(2)).strip()
+        uri, name = spotify_uri(query)
+        threading.Thread(target=spotify_open, args=(uri or f"spotify:search:{query}",), daemon=True).start()
+        return f"Playing {name}, sir." if uri else f"Searching Spotify for {query}, sir."
+
     if re.search(r"\b(find|cari|where is|di ?mana)\b.*\b(phone|hp|handphone|ponsel)\b", t):
         dev, _ = phone()
         if not dev:
             return "I cannot reach your phone, sir."
         run("kdeconnect-cli", "-d", dev, "--ring")
         return "Ringing your phone now, sir."
+
     m = re.search(r"\b(open|launch|start|buka|bukain|jalankan)\b\s+(.+)", t)
     if m:
         for pat, cmd in APPS.items():
             if re.search(rf"\b({pat})\b", m.group(2)):
-                subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+                launch(cmd)
                 return "Right away, sir."
+        for pat, url in SITES.items():
+            if re.search(rf"\b({pat})\b", m.group(2)):
+                launch(["zen-browser", url])
+                return "Opening it now, sir."
+
+    if re.search(r"\b(screenshot|screen ?shot|tangkap layar|ss layar)\b", t):
+        def shot():
+            island("idle")
+            time.sleep(0.8)  # tunggu poni tersembunyi
+            run("caelestia", "screenshot", timeout=15)
+        threading.Thread(target=shot, daemon=True).start()
+        return "Screenshot captured, sir."
+    if re.search(r"\b(jangan (di)?ganggu|do not disturb|dnd|mode senyap|silent mode)\b", t):
+        off = re.search(r"\b(matikan|matiin|nonaktifkan|off|disable|turn off|selesai)\b", t)
+        shell("notifs", "disableDnd" if off else "enableDnd")
+        return "Do not disturb is off, sir." if off else "Do not disturb is on, sir."
+    if re.search(r"\b(wallpaper|wall ?paper|latar)\b", t):
+        launch(["caelestia", "wallpaper", "-r", str(HOME / "Pictures/wallpapers")])
+        return "A new wallpaper, sir."
+
     if re.search(r"\b(lock|kunci)\b", t):
         threading.Timer(2.5, shell, ("lock", "lock")).start()
         return "Locking the workstation, sir."
@@ -833,7 +975,7 @@ def listen():
                 chatting = True
             else:
                 log(f"command: {reply!r}")
-                chatting = reply == "Yes, sir?"  # hanya dipanggil namanya: tunggu kalimat berikutnya
+                chatting = reply.endswith("?")  # dipanggil namanya saja, atau Jarvis bertanya balik
             if reply and reply != "Yes, sir?":
                 say(reply)
             last_talk = time.monotonic()

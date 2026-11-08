@@ -3,5 +3,7 @@
     "todoist_token": "",
     "calendar_ics_url": "",
     "seminar_date": "YYYY-MM-DD",
-    "thesis_dir": ""
+    "thesis_dir": "",
+    "spotify_client_id": "",
+    "spotify_client_secret": ""
 }
