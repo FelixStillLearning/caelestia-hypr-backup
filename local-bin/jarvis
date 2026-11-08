@@ -52,6 +52,8 @@ DISK_MIN = 0.10
 COOLDOWN = 30 * 60           # detik antar peringatan sistem yang sama
 WAKE_THRESHOLD = 0.4         # skor openWakeWord "hey jarvis" (lihat "near miss" di listen.log untuk menyetel)
 MIC_GAIN = 3.0               # penguatan mic khusus Jarvis (mic laptop ini pelan)
+FOLLOW_UP_WAIT = 6           # detik menunggu balasanmu setelah Jarvis menjawab
+HISTORY_RESET = 10 * 60      # konteks obrolan dilupakan setelah 10 menit tidak ngobrol
 WHISPER_MODEL = "small"      # multibahasa, cukup akurat untuk bahasa Indonesia
 # kosakata yang sering diucapkan, supaya Whisper mengeja nama aplikasi dengan benar
 WHISPER_HINT = ("Jarvis, buka Discord, Spotify, Obsidian, Zen, VS Code, terminal. "
@@ -608,7 +610,7 @@ def command(text):
 
 def claude_reply(text, history):
     exe = shutil.which("claude") or str(HOME / ".local/bin/claude")
-    convo = "".join(f"User: {u}\nJARVIS: {a}\n" for u, a in history[-3:])
+    convo = "".join(f"User: {u}\nJARVIS: {a}\n" for u, a in history[-8:])
     now = datetime.now().strftime("%A %d %B %Y, %H:%M")
     prompt = f"Current time: {now}.\n{convo}User: {text}\nJARVIS:"
     # folder sendiri + sesi tidak disimpan: tidak membaca memori proyek kerja dan tidak muncul di daftar sesi
@@ -654,6 +656,7 @@ def listen():
     manual = threading.Event()
     signal.signal(signal.SIGUSR1, lambda *_: manual.set())
     history = []
+    last_talk = 0.0
     log("ready")
 
     rec = None
@@ -677,11 +680,12 @@ def listen():
         a = np.frombuffer(rec.stdout.read(CHUNK * 2), dtype=np.int16).astype(np.float32) * MIC_GAIN
         return np.clip(a, -32768, 32767).astype(np.int16)
 
-    def record_utterance():
-        """Rekam sampai 0.7 detik hening setelah bicara (VAD Silero), maksimal 8 detik."""
+    def record_utterance(wait=4):
+        """Rekam sampai 0.7 detik hening setelah bicara (VAD Silero), maksimal 8 detik.
+        None kalau tidak ada suara selama `wait` detik."""
         vad.reset_states()
         frames, spoke, silent = [], False, 0
-        for i in range(100):
+        for i in range(int((wait + 8) * 12.5)):
             a = chunk()
             frames.append(a)
             if vad.predict(a, frame_size=640) > 0.5:
@@ -690,8 +694,10 @@ def listen():
                 silent += 1
                 if silent >= 9:
                     break
-            elif i > 50:  # 4 detik tanpa suara
+            elif i > wait * 12.5:  # belum bicara sama sekali
                 return None
+            if spoke and len(frames) > 100:  # sudah 8 detik bicara
+                break
         return np.concatenate(frames).astype(np.float32) / 32768
 
     def transcribe(audio):
@@ -731,39 +737,62 @@ def listen():
         manual.clear()
         wake.reset()
         log(f"wake score={score:.2f}")
+        if time.monotonic() - last_talk > HISTORY_RESET:  # lama tidak ngobrol: mulai topik baru
+            history.clear()
         close_mic()  # audio yang tertampung selama Jarvis bicara/berpikir ikut terbuang
         play(str(cues["yes"]), "Yes, sir?")
-        open_mic()
-        island("hear")
-        t0 = time.monotonic()
-        audio = record_utterance()
-        if audio is None:
-            log("no speech")
-            island("idle")
-            continue
-        close_mic()
-        island("think")
-        t1 = time.monotonic()
-        text = transcribe(audio)
-        log(f"heard {len(audio) / 16000:.1f}s (rec {t1 - t0:.1f}s, stt {time.monotonic() - t1:.1f}s) {text!r}")
-        if not text:
-            play(str(cues["missed"]), "I did not catch that, sir.")
-            continue
-        reply = command(text)
-        if reply is None:
-            filler = threading.Thread(target=play, args=(str(cues["moment"]), "One moment, sir."))
-            filler.start()
-            t2 = time.monotonic()
-            reply = claude_reply(text, history)
-            history.append((text, reply))
-            log(f"claude {time.monotonic() - t2:.1f}s: {reply!r}")
-            filler.join()
-        else:
-            log(f"command: {reply!r}")
-        if reply:
-            say(reply)
-        else:
-            island("idle")
+        # percakapan: setelah Jarvis menjawab, dia tetap mendengar tanpa "Hey Jarvis" sampai kamu diam
+        follow_up = False
+        while True:
+            open_mic()
+            island("hear")
+            t0 = time.monotonic()
+            audio = record_utterance(wait=FOLLOW_UP_WAIT if follow_up else 4)
+            if audio is None:
+                log("conversation ended" if follow_up else "no speech")
+                island("idle")
+                break
+            close_mic()
+            island("think")
+            t1 = time.monotonic()
+            text = transcribe(audio)
+            log(f"heard {len(audio) / 16000:.1f}s (rec {t1 - t0:.1f}s, stt {time.monotonic() - t1:.1f}s) {text!r}")
+            if not text:
+                play(str(cues["missed"]), "I did not catch that, sir.")
+                follow_up = True
+                continue
+            if ending(text):
+                say("You are welcome, sir.")
+                last_talk = time.monotonic()
+                break
+            reply = command(text)
+            if reply is None:
+                filler = threading.Thread(target=play, args=(str(cues["moment"]), "One moment, sir."))
+                filler.start()
+                t2 = time.monotonic()
+                reply = claude_reply(text, history)
+                history.append((text, reply))
+                log(f"claude {time.monotonic() - t2:.1f}s: {reply!r}")
+                filler.join()
+                chatting = True
+            else:
+                log(f"command: {reply!r}")
+                chatting = reply == "Yes, sir?"  # hanya dipanggil namanya: tunggu kalimat berikutnya
+            if reply and reply != "Yes, sir?":
+                say(reply)
+            last_talk = time.monotonic()
+            if not chatting:  # perintah biasa (buka aplikasi, lagu, ...) selesai di sini
+                island("idle")
+                break
+            follow_up = True
+
+
+def ending(text):
+    """Kalimat pendek penutup obrolan, misalnya "makasih Jarvis" atau "udah itu aja"."""
+    if "?" in text or re.search(r"\b(apa|berapa|gimana|bagaimana|kenapa|siapa|kapan|mana|what|how|why|who|when)\b", text.lower()):
+        return False
+    return len(text.split()) <= 4 and bool(
+        re.search(r"\b(thank(s| you)|that'?s all|terima ?kasih|makasih|udah|sudah|cukup|itu aja)\b", text.lower()))
 
 
 def pause_reason(own_pid):
