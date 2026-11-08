@@ -98,6 +98,7 @@ hl.on("hyprland.start", function()
 end)
 hl.bind("SUPER + J", hl.dsp.exec_cmd("~/.local/bin/jarvis brief"))
 hl.bind("SUPER + SHIFT + J", hl.dsp.exec_cmd("~/.local/bin/jarvis ask")) -- bicara tanpa "Hey Jarvis"
+hl.bind("SUPER + ALT + J", hl.dsp.exec_cmd("~/.local/bin/jarvis toggle")) -- nyalakan/matikan "Hey Jarvis"
 
 -- KDE Connect: daemon + ikon di tray (kirim file, ring phone, dsb.)
 hl.on("hyprland.start", function()
