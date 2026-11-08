@@ -69,10 +69,21 @@ def config():
 
 # ---------- suara ----------
 
+_voice = None
+
+
 def render(text, out):
+    global _voice
     with tempfile.TemporaryDirectory() as d:
         raw = f"{d}/raw.wav"
-        subprocess.run([PIPER, "-m", VOICE, "-f", raw], input=text.encode(), check=True, stderr=subprocess.DEVNULL)
+        try:  # di venv: model dimuat sekali, jauh lebih cepat
+            if _voice is None:
+                from piper import PiperVoice
+                _voice = PiperVoice.load(str(VOICE))
+            with wave.open(raw, "wb") as w:
+                _voice.synthesize_wav(text, w)
+        except ImportError:
+            subprocess.run([PIPER, "-m", VOICE, "-f", raw], input=text.encode(), check=True, stderr=subprocess.DEVNULL)
         subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", raw, "-af", FX, out], check=True)
 
 
@@ -598,24 +609,42 @@ def claude_reply(text, history):
     convo = "".join(f"User: {u}\nJARVIS: {a}\n" for u, a in history[-3:])
     now = datetime.now().strftime("%A %d %B %Y, %H:%M")
     prompt = f"Current time: {now}.\n{convo}User: {text}\nJARVIS:"
-    out = run(exe, "-p", "--model", "haiku", "--tools", "", "--system-prompt", PERSONA, prompt, timeout=45)
+    nomcp = STATE / "no-mcp.json"
+    if not nomcp.exists():
+        STATE.mkdir(parents=True, exist_ok=True)
+        nomcp.write_text('{"mcpServers": {}}')
+    out = run(exe, "-p", "--model", "haiku", "--tools", "", "--disable-slash-commands", "--strict-mcp-config",
+              "--mcp-config", str(nomcp), "--system-prompt", PERSONA, prompt, timeout=45)
     return out.replace("*", "").strip() or "I am afraid my connection to the cloud failed, sir."
+
+
+def log(msg):
+    STATE.mkdir(parents=True, exist_ok=True)
+    with open(STATE / "listen.log", "a") as f:
+        f.write(time.strftime("%H:%M:%S ") + msg + "\n")
 
 
 def listen():
     import numpy as np
     from faster_whisper import WhisperModel
     from openwakeword.model import Model
+    from openwakeword.vad import VAD
 
     LISTEN_PID.write_text(str(os.getpid()))
+    (STATE / "listen.log").write_text("")  # log baru tiap daemon mulai
     wake = Model(wakeword_models=["hey_jarvis"], inference_framework="onnx")
+    vad = VAD()
     stt = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
-    yes = RUNTIME / "jarvis-yes.wav"
-    if not yes.exists():
-        render("Yes, sir?", str(yes))
+    cues = {}
+    for name, text in (("yes", "Yes, sir?"), ("moment", "One moment, sir."), ("missed", "I did not catch that, sir.")):
+        cues[name] = RUNTIME / f"jarvis-{name}.wav"
+        if not cues[name].exists():
+            render(text, str(cues[name]))
+    render("ready", str(RUNTIME / "jarvis-warmup.wav"))  # muat model suara sekarang, bukan saat menjawab
     manual = threading.Event()
     signal.signal(signal.SIGUSR1, lambda *_: manual.set())
     history = []
+    log("ready")
 
     rec = None
     CHUNK = 1280  # 80 ms
@@ -637,9 +666,6 @@ def listen():
         data = rec.stdout.read(CHUNK * 2)
         return np.frombuffer(data, dtype=np.int16)
 
-    def level(a):
-        return float(np.sqrt(np.mean(a.astype(np.float32) ** 2))) if len(a) else 0.0
-
     def drain():
         """Buang audio yang tertampung selama Jarvis bicara (suaranya sendiri)."""
         fd = rec.stdout.fileno()
@@ -652,23 +678,28 @@ def listen():
         finally:
             os.set_blocking(fd, True)
 
-    ambient = 300.0  # perkiraan bising ruangan, diperbarui saat menunggu wake word
-
     def record_utterance():
-        """Rekam sampai 0.8 detik hening setelah bicara, maksimal 10 detik."""
+        """Rekam sampai 0.7 detik hening setelah bicara (VAD Silero), maksimal 10 detik."""
+        vad.reset_states()
         frames, spoke, silent = [], False, 0
         for i in range(125):
             a = chunk()
             frames.append(a)
-            if level(a) > max(500, ambient * 3):
+            if vad.predict(a, frame_size=640) > 0.5:
                 spoke, silent = True, 0
             elif spoke:
                 silent += 1
-                if silent >= 10:
+                if silent >= 9:
                     break
             elif i > 50:  # 4 detik tanpa suara
                 return None
         return np.concatenate(frames).astype(np.float32) / 32768
+
+    def transcribe(audio):
+        # bahasa dikunci ke Indonesia: tidak salah tebak (misalnya Rusia), kalimat Inggris tetap terbaca utuh
+        segs, _ = stt.transcribe(audio, language="id", beam_size=1, initial_prompt=WHISPER_HINT,
+                                 condition_on_previous_text=False)
+        return " ".join(x.text for x in segs).strip()
 
     paused, checked, shown, pushed = None, 0.0, "", 0.0
     while True:
@@ -692,29 +723,39 @@ def listen():
         if SPEAKING.exists():
             wake.reset()
             continue
-        ambient = 0.98 * ambient + 0.02 * level(a)
-        triggered = manual.is_set() or wake.predict(a).get("hey_jarvis", 0) > WAKE_THRESHOLD
-        if not triggered:
+        score = 1.0 if manual.is_set() else wake.predict(a).get("hey_jarvis", 0)
+        if score <= WAKE_THRESHOLD:
             continue
         manual.clear()
         wake.reset()
-        play(str(yes), "Yes, sir?")
+        log(f"wake score={score:.2f}")
+        play(str(cues["yes"]), "Yes, sir?")
         drain()
         island("hear")
+        t0 = time.monotonic()
         audio = record_utterance()
         if audio is None:
+            log("no speech")
             island("idle")
             continue
         island("think")
-        segs, _ = stt.transcribe(audio, beam_size=1, vad_filter=True, initial_prompt=WHISPER_HINT)
-        text = " ".join(s.text for s in segs).strip()
+        t1 = time.monotonic()
+        text = transcribe(audio)
+        log(f"heard {len(audio) / 16000:.1f}s (rec {t1 - t0:.1f}s, stt {time.monotonic() - t1:.1f}s) {text!r}")
         if not text:
-            say("I did not catch that, sir.")
+            play(str(cues["missed"]), "I did not catch that, sir.")
             continue
         reply = command(text)
         if reply is None:
+            filler = threading.Thread(target=play, args=(str(cues["moment"]), "One moment, sir."))
+            filler.start()
+            t2 = time.monotonic()
             reply = claude_reply(text, history)
             history.append((text, reply))
+            log(f"claude {time.monotonic() - t2:.1f}s: {reply!r}")
+            filler.join()
+        else:
+            log(f"command: {reply!r}")
         if reply:
             say(reply)
         else:
@@ -756,8 +797,8 @@ def ask():
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
-    if cmd == "listen" and Path(sys.prefix).resolve() != VENV.resolve():
-        os.execv(str(VENV / "bin/python"), [str(VENV / "bin/python"), __file__, "listen"])
+    if cmd in ("listen", "watch") and Path(sys.prefix).resolve() != VENV.resolve():
+        os.execv(str(VENV / "bin/python"), [str(VENV / "bin/python"), __file__, cmd])
     if cmd == "say" and len(sys.argv) > 2:
         say(" ".join(sys.argv[2:]))
     elif cmd == "done" and len(sys.argv) > 3:
