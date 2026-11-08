@@ -19,6 +19,7 @@ import collections
 import fcntl
 import json
 import os
+import random
 import re
 import shutil
 import signal
@@ -55,6 +56,12 @@ WAKE_THRESHOLD = 0.5         # skor openWakeWord "hey jarvis" yang langsung dite
 WAKE_PRE = 0.15              # skor di atas ini dicek ulang oleh Whisper (logat Indonesia skornya rendah)
 WAKE_WORD = re.compile(r"j[ae]r?[vfb]+[ie]?s|jarv|javis|jervis", re.I)
 MIC_GAIN = 1.0               # penguatan mic khusus Jarvis (naikkan kalau volume input sistem rendah)
+CUES = {
+    "yes": ["Yes, sir?", "At your service, sir.", "I'm listening, sir.", "How may I help, sir?", "Sir?"],
+    "moment": ["One moment, sir.", "Let me check, sir.", "Give me a second, sir.", "Allow me a moment, sir.",
+               "Looking into it, sir.", "Working on it, sir.", "Just a moment, sir.", "Right away, sir."],
+    "missed": ["I did not catch that, sir.", "Pardon me, sir?", "Could you say that again, sir?"],
+}
 FOLLOW_UP_WAIT = 6           # detik menunggu balasanmu setelah Jarvis menjawab
 HISTORY_RESET = 10 * 60      # konteks obrolan dilupakan setelah 10 menit tidak ngobrol
 WHISPER_MODEL = "small"      # multibahasa, cukup akurat untuk bahasa Indonesia
@@ -670,11 +677,20 @@ def listen():
     wake = Model(wakeword_models=["hey_jarvis"], inference_framework="onnx")
     vad = VAD()
     stt = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8", cpu_threads=8)
-    cues = {}
-    for name, text in (("yes", "Yes, sir?"), ("moment", "One moment, sir."), ("missed", "I did not catch that, sir.")):
-        cues[name] = RUNTIME / f"jarvis-{name}.wav"
-        if not cues[name].exists():
-            render(text, str(cues[name]))
+    cues = {}  # kalimat pendek yang sudah dirender, dipilih acak supaya bervariasi
+    for name, lines in CUES.items():
+        cues[name] = []
+        for k, text in enumerate(lines):
+            wav = RUNTIME / f"jarvis-{name}-{k}.wav"
+            if not wav.exists():
+                render(text, str(wav))
+            cues[name].append((str(wav), text))
+    last_cue = {}
+
+    def cue(name):
+        options = [c for c in cues[name] if c != last_cue.get(name)] or cues[name]
+        last_cue[name] = random.choice(options)
+        return last_cue[name]
     render("ready", str(RUNTIME / "jarvis-warmup.wav"))  # muat model suara sekarang, bukan saat menjawab
     manual = threading.Event()
     signal.signal(signal.SIGUSR1, lambda *_: manual.set())
@@ -780,7 +796,7 @@ def listen():
         if time.monotonic() - last_talk > HISTORY_RESET:  # lama tidak ngobrol: mulai topik baru
             history.clear()
         close_mic()  # audio yang tertampung selama Jarvis bicara/berpikir ikut terbuang
-        play(str(cues["yes"]), "Yes, sir?")
+        play(*cue("yes"))
         # percakapan: setelah Jarvis menjawab, dia tetap mendengar tanpa "Hey Jarvis" sampai kamu diam
         follow_up = False
         while True:
@@ -798,7 +814,7 @@ def listen():
             text = transcribe(audio)
             log(f"heard {len(audio) / 16000:.1f}s (rec {t1 - t0:.1f}s, stt {time.monotonic() - t1:.1f}s) {text!r}")
             if not text:
-                play(str(cues["missed"]), "I did not catch that, sir.")
+                play(*cue("missed"))
                 follow_up = True
                 continue
             if ending(text):
@@ -807,7 +823,7 @@ def listen():
                 break
             reply = command(text)
             if reply is None:
-                filler = threading.Thread(target=play, args=(str(cues["moment"]), "One moment, sir."))
+                filler = threading.Thread(target=play, args=cue("moment"))
                 filler.start()
                 t2 = time.monotonic()
                 reply = claude_reply(text, history)
