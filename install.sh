@@ -79,6 +79,13 @@ if command -v ffmpeg >/dev/null && ask "Pasang suara Jarvis (sambutan login, bri
     for f in "$j" "$j.json"; do
         [[ -s $piper/voices/${f##*/} ]] || curl -fL --progress-bar -o "$piper/voices/${f##*/}" "$f"
     done
+    # "Hey Jarvis" + perintah suara: openWakeWord (tanpa tflite) dan Whisper
+    "$piper/venv/bin/pip" install -q faster-whisper scipy tqdm requests scikit-learn
+    "$piper/venv/bin/pip" install -q --no-deps openwakeword
+    "$piper/venv/bin/python" -c 'import openwakeword.utils as u; u.download_models(model_names=["hey_jarvis"])' >/dev/null 2>&1
+    mkdir -p "$HOME/.config/jarvis" "$HOME/.config/quickshell/jarvis-island"
+    [[ -f $HOME/.config/jarvis/config.json ]] || install -m600 jarvis/config.example.json "$HOME/.config/jarvis/config.json"
+    cp quickshell/jarvis-island/shell.qml "$HOME/.config/quickshell/jarvis-island/"
 fi
 
 # Spotify: tema Caelestia lewat Spicetify
