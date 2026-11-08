@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """Suara Jarvis (Piper TTS offline + efek gema).
 
-  jarvis say "teks"    ucapkan teks
-  jarvis greet         sambutan login
-  jarvis brief         jam, cuaca, baterai, lagu yang diputar (Super+J)
-  jarvis battery       daemon: baterai lemah + charger dicolok/dicabut
+  jarvis say "teks"          ucapkan teks
+  jarvis greet               sambutan login
+  jarvis brief               jam, cuaca, baterai, lagu yang diputar (Super+J)
+  jarvis watch               daemon: baterai, charger, profil daya, suhu, RAM, disk,
+                             monitor, headphone, Bluetooth, lock, shutdown, info jam
+  jarvis done STATUS PID CMD dipanggil fish saat perintah lama selesai
 """
 import fcntl
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.request
 from pathlib import Path
@@ -21,34 +25,74 @@ PIPER = HOME / ".local/share/piper/venv/bin/piper"
 VOICE = HOME / ".local/share/piper/voices/jarvis-high.onnx"
 FX = "highpass=f=120,aecho=0.8:0.6:40|70:0.25|0.15,volume=1.2"
 PS = Path("/sys/class/power_supply")
-LOW = (20, 10, 5)  # persen, masing-masing sekali per sesi tidak dicas
+RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
+LOW = (20, 10, 5)            # persen baterai, masing-masing sekali per sesi tidak dicas
+QUIET = (22, 7)              # jam tenang: info jam dan kabar non-darurat tidak diucapkan
+TEMP_MAX = 90                # derajat C, CPU (k10temp)
+RAM_MIN = 0.07               # sisa RAM minimal
+DISK_MIN = 0.10              # sisa disk minimal
+COOLDOWN = 30 * 60           # detik antar peringatan sistem yang sama
+
+
+def render(text, out):
+    with tempfile.TemporaryDirectory() as d:
+        raw = f"{d}/raw.wav"
+        subprocess.run([PIPER, "-m", VOICE, "-f", raw], input=text.encode(), check=True, stderr=subprocess.DEVNULL)
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", raw, "-af", FX, out], check=True)
+
+
+def play(wav):
+    # kunci supaya dua ucapan tidak tumpang tindih
+    with open(RUNTIME / "jarvis.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        subprocess.run(["pw-play", wav], check=False)
 
 
 def say(text):
-    # kunci supaya dua ucapan tidak tumpang tindih
-    with open(Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "jarvis.lock", "w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        with tempfile.TemporaryDirectory() as d:
-            raw, out = f"{d}/raw.wav", f"{d}/out.wav"
-            subprocess.run([PIPER, "-m", VOICE, "-f", raw], input=text.encode(), check=True, stderr=subprocess.DEVNULL)
-            subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", raw, "-af", FX, out], check=True)
-            subprocess.run(["pw-play", out], check=False)
+    with tempfile.TemporaryDirectory() as d:
+        render(text, f"{d}/out.wav")
+        play(f"{d}/out.wav")
+
+
+def say_async(text):
+    threading.Thread(target=say, args=(text,), daemon=True).start()
+
+
+def run(*cmd):
+    return subprocess.run(cmd, capture_output=True, text=True).stdout.strip()
 
 
 def read(path):
     try:
-        return (PS / path).read_text().strip()
+        return Path(path).read_text().strip()
     except OSError:
         return ""
 
 
 def battery():
-    return int(read("BAT0/capacity") or 0), read("ACAD/online") == "1"
+    return int(read(PS / "BAT0/capacity") or 0), read(PS / "ACAD/online") == "1"
+
+
+def shell(target, fn):
+    return run("qs", "-c", "caelestia", "ipc", "call", target, fn)
+
+
+def quiet():
+    h = time.localtime().tm_hour
+    return h >= QUIET[0] or h < QUIET[1] or shell("notifs", "isDndEnabled") == "true"
 
 
 def part_of_day():
     h = time.localtime().tm_hour
     return "morning" if 4 <= h < 12 else "afternoon" if 12 <= h < 18 else "evening"
+
+
+def spoken_time(t):
+    hour = t.tm_hour % 12 or 12
+    ampm = "AM" if t.tm_hour < 12 else "PM"
+    if t.tm_min == 0:
+        return f"{hour} {ampm}"
+    return f"{hour} {t.tm_min:02d} {ampm}" if t.tm_min >= 10 else f"{hour} oh {t.tm_min} {ampm}"
 
 
 def greet():
@@ -65,11 +109,10 @@ def weather():
 
 
 def now_playing():
-    names = subprocess.run(["busctl", "--user", "--list", "--no-legend"], capture_output=True, text=True).stdout.split()
+    names = run("busctl", "--user", "--list", "--no-legend").split()
     for name in (n for n in names if n.startswith("org.mpris.MediaPlayer2.")):
-        prop = lambda p: subprocess.run(
-            ["busctl", "--user", "-j", "get-property", name, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", p],
-            capture_output=True, text=True).stdout
+        prop = lambda p: run("busctl", "--user", "-j", "get-property", name, "/org/mpris/MediaPlayer2",
+                             "org.mpris.MediaPlayer2.Player", p)
         try:
             if json.loads(prop("PlaybackStatus"))["data"] != "Playing":
                 continue
@@ -83,12 +126,9 @@ def now_playing():
 
 
 def brief():
-    t = time.localtime()
-    hour = t.tm_hour % 12 or 12
-    clock = f"{hour} o'clock" if t.tm_min == 0 else f"{hour} {t.tm_min:02d}" if t.tm_min >= 10 else f"{hour} oh {t.tm_min}"
     pct, plugged = battery()
     lines = [
-        f"Good {part_of_day()}, sir. It is {clock} {'AM' if t.tm_hour < 12 else 'PM'}.",
+        f"Good {part_of_day()}, sir. It is {spoken_time(time.localtime())}.",
         weather(),
         f"Battery at {pct} percent{', charging' if plugged else ''}.",
         now_playing(),
@@ -96,31 +136,157 @@ def brief():
     say(" ".join(l for l in lines if l))
 
 
-def battery_daemon():
+def done(status, pid, cmd):
+    """Perintah terminal lama selesai: bicara hanya kalau terminalnya sedang tidak dilihat."""
+    try:
+        active = json.loads(run("hyprctl", "activewindow", "-j") or "{}").get("pid")
+    except ValueError:
+        active = None
+    p = int(pid)
+    while p > 1:  # naik dari fish ke terminal yang menjalankannya
+        if p == active:
+            return
+        p = int(read(f"/proc/{p}/stat").rsplit(")", 1)[-1].split()[1] or 1)
+    name = cmd.split()[0].split("/")[-1] if cmd.strip() else "command"
+    if name in ("sudo", "doas") and len(cmd.split()) > 1:
+        name = cmd.split()[1]
+    say(f"The {name} command has finished, sir." if status == "0" else f"The {name} command has failed, sir.")
+
+
+# ---------- daemon ----------
+
+def cpu_temp():
+    for h in Path("/sys/class/hwmon").iterdir():
+        if read(h / "name") == "k10temp":
+            return int(read(h / "temp1_input") or 0) // 1000
+    return 0
+
+
+def ram_free():
+    info = dict(l.split(":", 1) for l in read("/proc/meminfo").splitlines())
+    return int(info["MemAvailable"].split()[0]) / int(info["MemTotal"].split()[0])
+
+
+def audio_out():
+    try:
+        sinks = json.loads(run("pactl", "-f", "json", "list", "sinks") or "[]")
+    except ValueError:
+        return ""
+    default = run("pactl", "get-default-sink")
+    for s in sinks:
+        if s["name"] == default:
+            port = s.get("active_port") or ""
+            return "headphones" if "headphone" in port or "bluez" in default else "speakers"
+    return ""
+
+
+def bt_devices():
+    out = run("bluetoothctl", "devices", "Connected")
+    return {l.split(" ", 2)[2] for l in out.splitlines() if l.startswith("Device ") and len(l.split(" ", 2)) == 3}
+
+
+def monitors():
+    try:
+        return len(json.loads(run("hyprctl", "monitors", "-j") or "[]"))
+    except ValueError:
+        return 0
+
+
+def farewell_guard():
+    """Tahan shutdown sebentar (inhibitor delay) supaya 'Goodbye' sempat diucapkan."""
+    wav = RUNTIME / "jarvis-goodbye.wav"
+    if not wav.exists():
+        render("Goodbye, sir. Shutting down.", str(wav))
+    inhibit = subprocess.Popen(["systemd-inhibit", "--what=shutdown", "--mode=delay", "--who=Jarvis",
+                                "--why=Farewell", "sleep", "infinity"])
+    mon = subprocess.Popen(["dbus-monitor", "--system", "type='signal',interface='org.freedesktop.login1.Manager',"
+                            "member='PrepareForShutdown'"], stdout=subprocess.PIPE, text=True)
+    for line in mon.stdout:
+        if "boolean true" in line:
+            play(str(wav))
+            inhibit.kill()
+            return
+
+
+def watch():
+    threading.Thread(target=farewell_guard, daemon=True).start()
     pct, plugged = battery()
     warned = {x for x in LOW if pct <= x}  # jangan langsung bicara saat login
+    last_alert = {}
+    hot = 0
+    out, bt, mons = audio_out(), bt_devices(), monitors()
+    locked = shell("lock", "isLocked") == "true"
+    chimed = time.localtime().tm_hour
+
+    def alert(key, text):
+        if time.time() - last_alert.get(key, 0) > COOLDOWN:
+            last_alert[key] = time.time()
+            say_async(text)
+
     while True:
         time.sleep(5)
+
+        # baterai, charger, profil daya
         new_pct, new_plugged = battery()
         if new_plugged != plugged:
-            say(f"Charger connected, sir. Battery at {new_pct} percent." if new_plugged
-                else f"Running on battery power, sir. {new_pct} percent remaining.")
+            run("powerprofilesctl", "set", "balanced" if new_plugged else "power-saver")
+            say_async(f"Charger connected, sir. Battery at {new_pct} percent." if new_plugged
+                      else f"Running on battery power, sir. {new_pct} percent remaining. Power saver engaged.")
             warned = set()
         elif not new_plugged:
             for x in LOW:
                 if new_pct <= x and x not in warned:
                     warned |= {y for y in LOW if y >= x}
-                    say(f"Battery at {new_pct} percent, sir. I suggest plugging in." if x > 5
-                        else f"Battery critical at {new_pct} percent, sir. Shutdown is imminent.")
+                    say_async(f"Battery at {new_pct} percent, sir. I suggest plugging in." if x > 5
+                              else f"Battery critical at {new_pct} percent, sir. Shutdown is imminent.")
                     break
         pct, plugged = new_pct, new_plugged
+
+        # suhu (harus panas 3 kali berturut-turut = 15 detik), RAM, disk
+        hot = hot + 1 if cpu_temp() >= TEMP_MAX else 0
+        if hot == 3:
+            alert("temp", f"CPU temperature is at {cpu_temp()} degrees, sir. You may want to ease off.")
+        if ram_free() < RAM_MIN:
+            alert("ram", "Memory is almost full, sir. Consider closing a few applications.")
+        du = shutil.disk_usage("/")
+        if du.free / du.total < DISK_MIN:
+            alert("disk", f"Disk space is down to {du.free * 100 // du.total} percent, sir.")
+
+        # monitor, headphone, Bluetooth
+        n = monitors()
+        if n != mons and n:
+            say_async("External display connected, sir." if n > mons else "External display disconnected, sir.")
+            mons = n
+        o = audio_out()
+        if o and o != out:
+            say_async("Headphones connected, sir." if o == "headphones" else "Switched to speakers, sir.")
+            out = o
+        b = bt_devices()
+        for d in sorted(b - bt):
+            say_async(f"{d} connected, sir.")
+        bt = b
+
+        # lock / unlock
+        now_locked = shell("lock", "isLocked") == "true"
+        if now_locked != locked:
+            say_async("Securing the workstation, sir." if now_locked else "Welcome back, sir.")
+            locked = now_locked
+
+        # info jam tiap jam
+        t = time.localtime()
+        if t.tm_min == 0 and t.tm_hour != chimed:
+            chimed = t.tm_hour
+            if not quiet() and not locked:
+                say_async(f"It is {spoken_time(t)}, sir.")
 
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     if cmd == "say" and len(sys.argv) > 2:
         say(" ".join(sys.argv[2:]))
-    elif cmd in ("greet", "brief", "battery"):
-        {"greet": greet, "brief": brief, "battery": battery_daemon}[cmd]()
+    elif cmd == "done" and len(sys.argv) > 3:
+        done(sys.argv[2], sys.argv[3], " ".join(sys.argv[4:]))
+    elif cmd in ("greet", "brief", "watch", "battery"):
+        {"greet": greet, "brief": brief, "watch": watch, "battery": watch}[cmd]()
     else:
         sys.exit(__doc__)

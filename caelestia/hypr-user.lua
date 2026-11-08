@@ -90,10 +90,10 @@ hl.bind("SUPER + I", hl.dsp.exec_cmd("caelestia shell nexus open"))
 -- Kursor ikut terlihat saat share screen (Discord/Chrome tidak menangkap hardware cursor)
 hl.config({ cursor = { no_hardware_cursors = 1 } })
 
--- Jarvis: sambutan login, peringatan baterai/charger, briefing di Super+J
+-- Jarvis: sambutan login, briefing Super+J, daemon pemantau (baterai, suhu, perangkat, lock, shutdown, jam)
 hl.on("hyprland.start", function()
     hl.exec_cmd("sleep 3; ~/.local/bin/jarvis greet")
-    hl.exec_cmd("~/.local/bin/jarvis battery")
+    hl.exec_cmd("~/.local/bin/jarvis watch")
 end)
 hl.bind("SUPER + J", hl.dsp.exec_cmd("~/.local/bin/jarvis brief"))
 
@@ -102,3 +102,14 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("/usr/bin/kdeconnectd")
     hl.exec_cmd("sleep 2; kdeconnect-indicator")
 end)
+
+-- Transparansi per aplikasi (aktif / tidak aktif). Video dan gambar tetap solid.
+for class, op in pairs({
+    ["Spotify"]  = "0.85 override 0.80 override",
+    ["equibop"]  = "0.88 override 0.82 override",
+    ["code"]     = "0.92 override 0.88 override",
+    ["obsidian"] = "0.92 override 0.88 override",
+}) do
+    hl.window_rule({ match = { class = class, fullscreen = false }, opaque = false, opacity = op })
+end
+hl.window_rule({ match = { class = "mpv|vlc|celluloid|imv|org.gnome.Loupe" }, opaque = true })

@@ -2,7 +2,7 @@
 @import "colors.rasi"
 
 configuration {
-    font:       "Rubik 12";
+    font:       "SF Pro Text 12";
     show-icons: true;
 }
 
@@ -30,7 +30,7 @@ message {
     padding: 6px 14px 2px 14px;
 }
 textbox {
-    font:       "Rubik Medium 13";
+    font:       "SF Pro Text Medium 13";
     text-color: @on-surface-variant;
 }
 

@@ -2,6 +2,24 @@
     "appearance": {
         "transparency": {
             "enabled": true
+        },
+        "font": {
+            "headline": {
+                "family": "SF Pro Display"
+            },
+            "title": {
+                "family": "SF Pro Display"
+            },
+            "body": {
+                "family": "SF Pro Text"
+            },
+            "label": {
+                "family": "SF Pro Text"
+            },
+            "mono": {
+                "family": "JetBrains Mono"
+            },
+            "clock": "SF Pro Display"
         }
     },
     "general": {
