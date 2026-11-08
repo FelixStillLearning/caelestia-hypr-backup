@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+"""Suara Jarvis (Piper TTS offline + efek gema).
+
+  jarvis say "teks"    ucapkan teks
+  jarvis greet         sambutan login
+  jarvis brief         jam, cuaca, baterai, lagu yang diputar (Super+J)
+  jarvis battery       daemon: baterai lemah + charger dicolok/dicabut
+"""
+import fcntl
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.request
+from pathlib import Path
+
+HOME = Path.home()
+PIPER = HOME / ".local/share/piper/venv/bin/piper"
+VOICE = HOME / ".local/share/piper/voices/jarvis-high.onnx"
+FX = "highpass=f=120,aecho=0.8:0.6:40|70:0.25|0.15,volume=1.2"
+PS = Path("/sys/class/power_supply")
+LOW = (20, 10, 5)  # persen, masing-masing sekali per sesi tidak dicas
+
+
+def say(text):
+    # kunci supaya dua ucapan tidak tumpang tindih
+    with open(Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "jarvis.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        with tempfile.TemporaryDirectory() as d:
+            raw, out = f"{d}/raw.wav", f"{d}/out.wav"
+            subprocess.run([PIPER, "-m", VOICE, "-f", raw], input=text.encode(), check=True, stderr=subprocess.DEVNULL)
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", raw, "-af", FX, out], check=True)
+            subprocess.run(["pw-play", out], check=False)
+
+
+def read(path):
+    try:
+        return (PS / path).read_text().strip()
+    except OSError:
+        return ""
+
+
+def battery():
+    return int(read("BAT0/capacity") or 0), read("ACAD/online") == "1"
+
+
+def part_of_day():
+    h = time.localtime().tm_hour
+    return "morning" if 4 <= h < 12 else "afternoon" if 12 <= h < 18 else "evening"
+
+
+def greet():
+    say(f"Good {part_of_day()}, sir. Welcome back. All systems are online.")
+
+
+def weather():
+    try:
+        with urllib.request.urlopen("https://wttr.in/?format=j1", timeout=4) as r:
+            cur = json.load(r)["current_condition"][0]
+        return f"It is {cur['temp_C']} degrees outside, {cur['weatherDesc'][0]['value'].strip().lower()}."
+    except Exception:
+        return ""
+
+
+def now_playing():
+    names = subprocess.run(["busctl", "--user", "--list", "--no-legend"], capture_output=True, text=True).stdout.split()
+    for name in (n for n in names if n.startswith("org.mpris.MediaPlayer2.")):
+        prop = lambda p: subprocess.run(
+            ["busctl", "--user", "-j", "get-property", name, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", p],
+            capture_output=True, text=True).stdout
+        try:
+            if json.loads(prop("PlaybackStatus"))["data"] != "Playing":
+                continue
+            meta = json.loads(prop("Metadata"))["data"]
+            title = meta["xesam:title"]["data"]
+            artist = ", ".join(meta.get("xesam:artist", {}).get("data", []))
+        except (ValueError, KeyError):
+            continue
+        return f"Now playing: {title}" + (f", by {artist}." if artist else ".")
+    return ""
+
+
+def brief():
+    t = time.localtime()
+    hour = t.tm_hour % 12 or 12
+    clock = f"{hour} o'clock" if t.tm_min == 0 else f"{hour} {t.tm_min:02d}" if t.tm_min >= 10 else f"{hour} oh {t.tm_min}"
+    pct, plugged = battery()
+    lines = [
+        f"Good {part_of_day()}, sir. It is {clock} {'AM' if t.tm_hour < 12 else 'PM'}.",
+        weather(),
+        f"Battery at {pct} percent{', charging' if plugged else ''}.",
+        now_playing(),
+    ]
+    say(" ".join(l for l in lines if l))
+
+
+def battery_daemon():
+    pct, plugged = battery()
+    warned = {x for x in LOW if pct <= x}  # jangan langsung bicara saat login
+    while True:
+        time.sleep(5)
+        new_pct, new_plugged = battery()
+        if new_plugged != plugged:
+            say(f"Charger connected, sir. Battery at {new_pct} percent." if new_plugged
+                else f"Running on battery power, sir. {new_pct} percent remaining.")
+            warned = set()
+        elif not new_plugged:
+            for x in LOW:
+                if new_pct <= x and x not in warned:
+                    warned |= {y for y in LOW if y >= x}
+                    say(f"Battery at {new_pct} percent, sir. I suggest plugging in." if x > 5
+                        else f"Battery critical at {new_pct} percent, sir. Shutdown is imminent.")
+                    break
+        pct, plugged = new_pct, new_plugged
+
+
+if __name__ == "__main__":
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+    if cmd == "say" and len(sys.argv) > 2:
+        say(" ".join(sys.argv[2:]))
+    elif cmd in ("greet", "brief", "battery"):
+        {"greet": greet, "brief": brief, "battery": battery_daemon}[cmd]()
+    else:
+        sys.exit(__doc__)

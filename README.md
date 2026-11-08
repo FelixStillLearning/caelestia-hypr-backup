@@ -1,83 +1,73 @@
-<div align="center">
-
 # caelestia-hypr-backup
 
-**Konfigurasi Hyprland + Caelestia Shell milik felixdev**
+Dotfiles Hyprland (config Lua) dan Caelestia Shell untuk Arch Linux, dipakai di Lenovo IdeaPad Slim 5 14AKP10 (AMD).
 
-Satu tema dari tombol power sampai desktop: menu GRUB, layar boot, layar login, desktop, dan aplikasi semuanya ikut warna wallpaper.
+Repo ini berisi lapisan kustomisasi di atas [caelestia-dots/caelestia](https://github.com/caelestia-dots/caelestia): tema yang mengikuti wallpaper dari GRUB sampai aplikasi, beberapa menu bergaya Windows, perbaikan khusus perangkat keras, dan asisten suara Jarvis yang berjalan offline.
 
-![Arch Linux](https://img.shields.io/badge/Arch_Linux-1793D1?style=for-the-badge&logo=archlinux&logoColor=white)
-![Hyprland](https://img.shields.io/badge/Hyprland-Lua_config-58E1FF?style=for-the-badge&logo=hyprland&logoColor=black)
-![Caelestia](https://img.shields.io/badge/Caelestia-Quickshell-B4A4F4?style=for-the-badge)
-![Wayland](https://img.shields.io/badge/Wayland-FFBC00?style=for-the-badge&logo=wayland&logoColor=black)
+## Daftar isi
 
-</div>
-
----
-
-## Daftar Isi
-
-- [Sekilas](#sekilas)
-- [Cara Pasang](#cara-pasang)
-- [Fitur Tambahan](#fitur-tambahan)
-- [Tema Seragam](#tema-seragam)
-- [Spesifikasi Sistem](#spesifikasi-sistem)
-- [Struktur Repo](#struktur-repo)
-- [Cara Kerja Config](#cara-kerja-config)
-- [Aplikasi Default](#aplikasi-default)
-- [Tampilan](#tampilan)
+- [Kebutuhan](#kebutuhan)
+- [Instalasi](#instalasi)
+- [Langkah manual](#langkah-manual)
+- [Sinkronisasi tema](#sinkronisasi-tema)
+- [Fitur tambahan](#fitur-tambahan)
+- [Jarvis](#jarvis)
+- [KDE Connect](#kde-connect)
+- [Struktur repo](#struktur-repo)
+- [Cara kerja config](#cara-kerja-config)
 - [Keybind](#keybind)
 - [Autostart](#autostart)
-- [Khusus Perangkat Keras](#khusus-perangkat-keras)
-- [Catatan](#catatan)
+- [Catatan perangkat keras](#catatan-perangkat-keras)
+- [Pemecahan masalah](#pemecahan-masalah)
 - [Kredit](#kredit)
 
----
+## Kebutuhan
 
-## Sekilas
+| Komponen | Versi yang dipakai |
+|---|---|
+| OS | Arch Linux, kernel 7.2 |
+| Compositor | Hyprland 0.57 (config Lua) |
+| Shell desktop | Caelestia Shell 2.5 (Quickshell) |
+| CPU / GPU | AMD Ryzen AI 7 350, Radeon 860M |
+| Layar | `eDP-1` 1920x1200 @ 60 Hz |
 
-Setup ini dibangun di atas dotfiles resmi [caelestia-dots/caelestia](https://github.com/caelestia-dots/caelestia). Semua penyesuaian pribadi ditaruh di file khusus user, jadi tidak hilang saat Caelestia di-update.
+Caelestia harus sudah terpasang sesuai [panduan resminya](https://github.com/caelestia-dots/caelestia). Installer di repo ini hanya menimpa bagian yang dikustomisasi.
 
-| Folder | Dipasang ke | Isi |
-|---|---|---|
-| `hypr/` | `~/.config/hypr` | Config Hyprland (format Lua), skema warna, script wallpaper |
-| `caelestia/` | `~/.config/caelestia` | Setelan shell, override Hyprland, hook, template tema |
-| `rofi/` | `~/.config/rofi` | Gaya popup bergaya Caelestia dan picker wallpaper |
-| `local-bin/` | `~/.local/bin` | Script menu layar, baterai, audio, mic, tombol laptop |
-| `system/` | `/etc`, `/usr/local` | Izin sudo, hook pacman, pembuat tema GRUB dan login |
+## Instalasi
 
-## Cara Pasang
-
-### 1. Pasang Caelestia dulu
-
-Ikuti panduan resmi [caelestia-dots/caelestia](https://github.com/caelestia-dots/caelestia). Repo ini hanya menimpa bagian yang dipersonalisasi.
-
-### 2. Pasang paket yang dipakai
+Paket tambahan:
 
 ```bash
-yay -S --needed rofi jq libnotify gnome-calculator pwvucontrol inotify-tools \
+yay -S --needed rofi jq libnotify gnome-calculator pwvucontrol inotify-tools ffmpeg \
        equibop-bin spotify spicetify-cli zen-browser-bin visual-studio-code-bin \
-       caelestia-sddm-locklike-git plymouth python-pillow ufw
+       caelestia-sddm-locklike-git plymouth python-pillow ufw kdeconnect
 ```
 
-Nama paket AUR bisa berubah. Cek dengan `yay -Ss <nama>` kalau ada yang tidak ditemukan.
-
-### 3. Jalankan installer
+Nama paket AUR bisa berubah; cek dengan `yay -Ss <nama>` bila ada yang tidak ditemukan.
 
 ```bash
 git clone https://github.com/FelixStillLearning/caelestia-hypr-backup.git
 cd caelestia-hypr-backup
-./install.sh            # config user saja
-./install.sh --system   # + tema login/GRUB, izin sudo, hook pacman (minta password)
+./install.sh            # config user
+./install.sh --system   # ditambah file sistem: sudoers, hook pacman, tema GRUB/login, Zen, firewall KDE Connect
 ```
 
-Installer selalu membackup config lama ke `~/.config-backup-<tanggal>` sebelum menimpa. Setelah selesai, logout lalu login lagi.
+Config lama dibackup ke `~/.config-backup-<tanggal>` sebelum ditimpa. Installer aman dijalankan ulang. Logout lalu login kembali setelah selesai.
 
-### 4. Langkah manual (sekali saja)
+Yang dilakukan `install.sh`:
 
-Langkah ini menyentuh boot, jadi sengaja tidak diotomatiskan. Jalankan satu per satu.
+- Menyalin `hypr/`, `caelestia/`, `rofi/` ke `~/.config` dan `local-bin/` ke `~/.local/bin`.
+- Zen Browser: memasang `userChrome.css` dan startpage untuk setiap profil.
+- Obsidian: memasang snippet `caelestia` di setiap vault. Vault yang disinkron git otomatis mengabaikan snippet ini.
+- VS Code: memasang extension `caelestia-vscode-integration`.
+- Spotify: menerapkan tema lewat Spicetify.
+- Opsional: mengunduh Piper TTS dan model suara Jarvis (sekitar 300 MB).
 
-**Tema GRUB.** Ganti resolusi kalau layarmu bukan 1920x1200:
+## Langkah manual
+
+Langkah berikut menyentuh proses boot, sehingga tidak diotomatiskan. Jalankan satu per satu.
+
+**Tema GRUB.** Sesuaikan resolusi bila layar bukan 1920x1200.
 
 ```bash
 sudo sed -i -e 's|^#GRUB_THEME=.*|GRUB_THEME="/boot/grub/themes/caelestia/theme.txt"|' \
@@ -85,9 +75,9 @@ sudo sed -i -e 's|^#GRUB_THEME=.*|GRUB_THEME="/boot/grub/themes/caelestia/theme.
 sudo grub-mkconfig -o /boot/grub/grub.cfg
 ```
 
-Kalau dual boot dengan Windows, pastikan `GRUB_DISABLE_OS_PROBER=false` di `/etc/default/grub` dan output `grub-mkconfig` menyebut `Found Windows Boot Manager`.
+Untuk dual boot Windows, set `GRUB_DISABLE_OS_PROBER=false` dan pastikan output `grub-mkconfig` menampilkan `Found Windows Boot Manager`. Tambahkan juga `GRUB_DISABLE_BOOTNEXT=true` supaya menu tidak penuh entri UEFI.
 
-**Animasi boot (Plymouth).** Logo pabrikan dengan putaran loading:
+**Plymouth.**
 
 ```bash
 sudo sed -i 's/^HOOKS=(base systemd /HOOKS=(base systemd plymouth /' /etc/mkinitcpio.conf
@@ -96,267 +86,251 @@ sudo sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT="\(.*\)"/GRUB_CMDLINE_LINUX_DEFAULT="
 sudo grub-mkconfig -o /boot/grub/grub.cfg
 ```
 
-**Layar login.** Pastikan tidak ada file lain di `/etc/sddm.conf.d/` yang memaksa tema lain (`Current=...`), lalu:
+**Layar login.** Pastikan tidak ada file di `/etc/sddm.conf.d/` yang menetapkan `Current=` ke tema lain, lalu:
 
 ```bash
 sudo /usr/share/sddm/themes/caelestia/scripts/sync.sh
 ```
 
-**Discord.** Buka Equibop (`SUPER + D`), lalu buka Settings, pilih Themes, dan centang `caelestia.theme.css`.
-
-**VS Code.** Tekan `Ctrl+K` lalu `Ctrl+T`, kemudian pilih **Caelestia**.
-
-**Firewall.** Koneksi masuk ditolak, kecuali penemuan perangkat di jaringan lokal dan Spotify Connect:
+**Firewall.**
 
 ```bash
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
-sudo ufw allow 5353/udp comment 'mDNS: printer, Chromecast, Spotify Connect'
+sudo ufw allow 5353/udp comment 'mDNS'
 sudo ufw allow 57621 comment 'Spotify Connect'
 sudo systemctl enable --now ufw
 sudo ufw enable
 ```
 
-## Fitur Tambahan
+**Aplikasi.**
 
-Fitur yang ditambahkan di atas Caelestia bawaan, dibuat supaya terasa seperti Windows:
+- Equibop: Settings > Themes, aktifkan `caelestia.theme.css`.
+- VS Code: `Ctrl+K Ctrl+T`, pilih Caelestia.
+- Zen: tutup lalu buka kembali agar `userChrome.css` dan startpage terbaca.
+
+## Sinkronisasi tema
+
+Setiap pergantian wallpaper (`SUPER + W` atau menu Caelestia) memperbarui warna di:
+
+| Target | Mekanisme |
+|---|---|
+| Menu GRUB | `caelestia-grub-theme`: latar blur, kartu menu, dan font Rubik dibuat dari wallpaper |
+| Layar login | Tema [caelestia-sddm](https://github.com/ItsABigIgloo/caelestia-sddm) Locklike, sapaan diganti oleh `caelestia-sddm-greeting` |
+| Desktop, terminal, GTK/Qt, Discord | Bawaan Caelestia |
+| Popup rofi | `sync-caelestia-rofi.py` |
+| Spotify | Spicetify, berlaku saat Spotify dibuka ulang |
+| VS Code | Extension `caelestia-vscode-integration` |
+| Zen Browser | `templates/zen-userChrome.css` dan startpage `templates/startpage.html` |
+| Obsidian | `templates/obsidian-caelestia.css` |
+
+Template di `caelestia/templates/` dirender Caelestia ke `~/.local/state/caelestia/theme/`. Hook pasca-ganti tema didefinisikan di `caelestia/cli.json`. Izin sudo tanpa password hanya diberikan untuk script sinkronisasi GRUB dan SDDM (lihat `system/etc/sudoers.d/`).
+
+## Fitur tambahan
 
 | Fitur | Tombol | Keterangan |
 |---|---|---|
-| Menu mode layar | `F7` / `SUPER + P` | PC screen only, Duplicate, Extend, Second screen only. Pilihan diingat setelah restart dan dipakai lagi saat HDMI dicolok |
-| Menu output dan input audio | `F11` | Pilih speaker, headphone, Bluetooth, atau mic. Suara yang sedang diputar ikut pindah |
-| Mode pengisian baterai | `SUPER + ALT + B` | Fast, Standard, Long Life (berhenti di sekitar 80%) |
-| Notifikasi mic | `F4` | Muncul pemberitahuan saat mic di-mute atau dinyalakan |
-| Mode pesawat | `F8` | WiFi dan Bluetooth mati bersamaan, dengan notifikasi |
-| Pengaturan Caelestia | `F9` / `SUPER + I` | Membuka aplikasi setelan Caelestia |
+| Mode layar | `F7` / `SUPER + P` | PC screen only, Duplicate, Extend, Second screen only. Pilihan disimpan dan dipakai ulang saat monitor dicolok |
+| Output dan input audio | `F11` | Speaker, headphone, Bluetooth, mic. Stream yang berjalan ikut dipindah |
+| Mode pengisian baterai | `SUPER + ALT + B` | Fast, Standard, Long Life (berhenti sekitar 80%) |
+| Notifikasi mic | `F4` | Notifikasi saat mic dimatikan atau dinyalakan |
+| Mode pesawat | `F8` | WiFi dan Bluetooth dimatikan bersamaan |
+| Pengaturan Caelestia | `F9` / `SUPER + I` | |
 | Kalkulator | `F12` | GNOME Calculator |
-| Tombol Copilot | `Copilot` | Membuka terminal dan langsung menjalankan Claude Code |
-| Pin jendela | `SUPER + SHIFT + P` | Jendela tetap terlihat di semua workspace |
+| Tombol Copilot | `Copilot` | Terminal dengan Claude Code |
+| Briefing Jarvis | `SUPER + J` | Lihat [Jarvis](#jarvis) |
 
-Semua popup memakai gaya Caelestia (font Rubik, ikon Material Symbols, sudut membulat) dan warnanya ikut wallpaper.
+Perubahan lain:
 
-## Tema Seragam
+- Jam desktop dan visualizer audio di wallpaper (`caelestia/shell.json`).
+- Spotify menjadi pemutar default di panel media, sehingga aplikasi lain yang mendaftar MPRIS (misalnya Ferdium) tidak mengambil alih.
+- Startpage Zen untuk homepage dan tab baru: jam, kolom pencarian, dan shortcut. Daftar shortcut ada di variabel `LINKS` pada `caelestia/templates/startpage.html`.
+- Share screen: kursor ikut terekam (`cursor:no_hardware_cursors`) dan dialog pemilihan layar tidak muncul dua kali (`hypr/xdph.conf`).
 
-Setiap kali wallpaper diganti (lewat `SUPER + W` atau menu Caelestia), warna di tempat-tempat ini ikut berubah:
+## Jarvis
 
-| Bagian | Cara kerja |
+Asisten suara offline berbasis [Piper TTS](https://github.com/OHF-Voice/piper1-gpl) dengan model komunitas [jgkawell/jarvis](https://huggingface.co/jgkawell/jarvis) dan sedikit efek gema dari `ffmpeg`.
+
+| Perintah | Fungsi |
 |---|---|
-| Menu GRUB | `caelestia-grub-theme` membuat latar blur, kartu menu, dan pill pilihan dari wallpaper |
-| Layar login (SDDM) | Tema [caelestia-sddm](https://github.com/ItsABigIgloo/caelestia-sddm) Locklike, sapaan "Welcome back, sir." dari `caelestia-sddm-greeting` |
-| Desktop, terminal, aplikasi GTK/Qt | Bawaan Caelestia |
-| Popup rofi (F7, F11, baterai, wallpaper) | `sync-caelestia-rofi.py` |
-| Discord (Equibop) | Bawaan Caelestia |
-| Spotify | Spicetify, berlaku saat Spotify dibuka lagi |
-| VS Code | Extension `caelestia-vscode-integration`, berubah langsung |
-| Zen Browser | Template `caelestia/templates/zen-userChrome.css`, berlaku saat Zen dibuka lagi |
+| `jarvis greet` | Sapaan sesuai waktu, diputar saat login |
+| `jarvis brief` | Jam, cuaca ([wttr.in](https://wttr.in)), baterai, dan lagu yang diputar. Dipanggil oleh `SUPER + J` |
+| `jarvis battery` | Daemon: charger dicolok/dicabut serta baterai 20%, 10%, dan 5% |
+| `jarvis say "teks"` | Mengucapkan teks bebas |
 
-Penghubungnya ada di `caelestia/cli.json` (`postHook`). Izin sudo tanpa password hanya diberikan untuk dua script sinkronisasi itu (lihat `system/etc/sudoers.d/`). Kedua script membaca file user dengan hak user biasa.
+Lokasi file: `~/.local/share/piper/venv` (Piper) dan `~/.local/share/piper/voices` (model). Model suara tidak disertakan di repo; installer mengunduhnya bila dipilih.
 
-## Spesifikasi Sistem
+## KDE Connect
 
-| Komponen | Detail |
-|---|---|
-| Laptop | Lenovo IdeaPad Slim 5 14AKP10 (83HX) |
-| OS | Arch Linux (kernel 7.2), dual boot Windows |
-| Compositor | Hyprland 0.57, config berbasis Lua |
-| Shell desktop | Caelestia Shell 2.5 (Quickshell) |
-| CPU / GPU | AMD Ryzen AI 7 350, Radeon 860M |
-| Layar | `eDP-1` 1920x1200 @ 60 Hz |
-| Shell terminal | fish (foot), zsh (login) |
+Menghubungkan ponsel Android lewat jaringan lokal: notifikasi, clipboard bersama, kirim file, dan kontrol media. `kdeconnectd` dan `kdeconnect-indicator` dijalankan dari `hypr-user.lua`, karena autostart XDG tidak aktif di sesi ini.
 
-## Struktur Repo
+1. Pasang aplikasi KDE Connect di ponsel dan sambungkan ke jaringan yang sama.
+2. Buka port 1714-1764 TCP/UDP (otomatis lewat `./install.sh --system` bila `ufw` terpasang).
+3. Pilih laptop di aplikasi ponsel, minta pairing, lalu terima di laptop.
+
+Izin plugin yang cukup di ponsel: Notification sync, Telephony notifier, Contacts Synchronizer, Filesystem access.
+
+## Struktur repo
 
 ```text
 .
-├── install.sh                 # installer (backup otomatis)
+├── install.sh
 ├── caelestia/
 │   ├── hypr-vars.lua          # override variabel Hyprland (aplikasi default, keybind)
-│   ├── hypr-user.lua          # tambahan pribadi: mode layar, F-key, Copilot, autostart
-│   ├── cli.json               # Discord via Equibop + hook sinkronisasi tema
-│   ├── templates/             # template warna untuk layar login dan Zen
+│   ├── hypr-user.lua          # tambahan: mode layar, F-key, Jarvis, KDE Connect, autostart
+│   ├── cli.json               # Discord via Equibop dan hook sinkronisasi tema
 │   ├── shell.json             # setelan Caelestia Shell
+│   ├── templates/             # SDDM, Zen, startpage, Obsidian
 │   ├── monitors/eDP-1/        # setelan shell per monitor
-│   └── user-config.fish       # tambahan config fish
+│   └── user-config.fish
 ├── hypr/
-│   ├── hyprland.lua           # entrypoint utama (bawaan Caelestia)
+│   ├── hyprland.lua           # entrypoint (bawaan Caelestia)
 │   ├── variables.lua          # nilai default (bawaan Caelestia)
-│   ├── hyprland/              # modul: env, input, rules, keybinds, dll.
-│   ├── scheme/                # skema warna (dibuat otomatis dari wallpaper)
-│   ├── utils/                 # helper Lua
-│   └── scripts/               # picker wallpaper (SUPER + W) dan ganti wallpaper acak
-├── rofi/
-│   ├── caelestia-menu.rasi    # gaya popup F7 / F11 / baterai
-│   ├── wallpaper-picker.rasi  # gaya picker wallpaper
-│   └── colors.rasi            # warna (ditulis ulang otomatis)
-├── local-bin/
-│   ├── display-mode.sh        # menu mode layar
-│   ├── audio-menu.sh          # menu output/input audio
-│   ├── battery-mode.sh        # menu mode pengisian baterai
-│   ├── mic-watch.sh           # notifikasi mute mic
-│   ├── lenovo-keys.py         # tombol F11 Lenovo
-│   ├── airplane-mode.sh       # mode pesawat (F8)
-│   ├── toggle-touchpad.sh     # touchpad on/off
-│   ├── rofi-icon              # ikon Material Symbols untuk rofi
-│   └── sync-caelestia-rofi.py # salin warna Caelestia ke rofi
+│   ├── xdph.conf              # setelan portal share screen
+│   ├── hyprland/              # modul: env, input, rules, keybinds
+│   ├── scheme/                # skema warna, dibuat dari wallpaper
+│   ├── utils/
+│   └── scripts/               # picker dan pengganti wallpaper
+├── rofi/                      # gaya popup dan picker wallpaper
+├── local-bin/                 # menu layar, audio, baterai, mic, tombol laptop, jarvis
 └── system/
-    ├── etc/sudoers.d/         # izin sudo tanpa password (%USER% diganti installer)
-    ├── etc/pacman.d/hooks/    # pasang ulang sapaan login setelah tema di-update
-    ├── etc/modprobe.d/        # perbaikan mic AMD (khusus laptop tertentu)
-    └── usr/local/             # caelestia-grub-theme, caelestia-sddm-greeting, font Rubik GRUB
+    ├── etc/sudoers.d/         # %USER% diganti oleh installer
+    ├── etc/pacman.d/hooks/    # pasang ulang sapaan login setelah update tema
+    ├── etc/modprobe.d/        # perbaikan mic AMD
+    ├── opt/zen-browser-bin/   # autoconfig untuk tab baru Zen
+    └── usr/local/             # caelestia-grub-theme, caelestia-sddm-greeting, font GRUB
 ```
 
-## Cara Kerja Config
+## Cara kerja config
 
-`hyprland.lua` adalah titik masuknya. Urutan yang dijalankan:
+`hypr/hyprland.lua` memuat config dengan urutan:
 
-1. Jika `scheme/current.lua` belum ada, salin dari `scheme/default.lua`.
-2. Timpa nilai di `variables.lua` dengan isi `~/.config/caelestia/hypr-vars.lua`.
-3. Pasang monitor default (`preferred`, posisi `auto`, scale `1`).
-4. Muat modul di `hyprland/` satu per satu.
-5. Terakhir, muat `~/.config/caelestia/hypr-user.lua` untuk tambahan pribadi.
+1. Menyalin `scheme/default.lua` ke `scheme/current.lua` bila belum ada.
+2. Menimpa `variables.lua` dengan `~/.config/caelestia/hypr-vars.lua`.
+3. Mengatur monitor default.
+4. Memuat modul di `hyprland/`.
+5. Memuat `~/.config/caelestia/hypr-user.lua`.
 
-Jangan edit file di `hypr/` secara langsung, karena file-file itu ditimpa saat Caelestia di-update. Taruh perubahan di **`caelestia/hypr-vars.lua`** atau **`caelestia/hypr-user.lua`**.
-
-## Aplikasi Default
-
-| Peran | Aplikasi |
-|---|---|
-| Terminal | `foot` |
-| Browser | `zen-browser` |
-| Editor | `code` (VS Code) |
-| File manager | `thunar` |
-| Discord | `equibop` |
-| Pengaturan audio | `pwvucontrol` |
-| Kalkulator | `gnome-calculator` |
-| Cursor | `sweet-cursors`, ukuran 24 |
-
-## Tampilan
-
-| Pengaturan | Nilai |
-|---|---|
-| Opasitas jendela | 0.95 |
-| Sudut jendela | 15 px |
-| Border | 1 px, warna mengikuti skema wallpaper |
-| Gaps | dalam 5, luar 10, satu jendela 20 |
-| Blur | aktif, ukuran 8, 2 pass, termasuk popup |
-| Shadow | aktif, range 15 |
-| Transparansi shell | aktif |
+File di `hypr/` ditimpa saat Caelestia diperbarui. Simpan perubahan di `caelestia/hypr-vars.lua` atau `caelestia/hypr-user.lua`.
 
 ## Keybind
 
-`SUPER` adalah tombol Windows. Tombol F di bawah adalah fungsi khusus (gambar di tombol). Tekan `Fn + Esc` untuk menukar perilakunya dengan F1–F12 biasa.
+`SUPER` adalah tombol Windows. Tombol F memakai fungsi khusus secara default; `Fn + Esc` menukarnya dengan F1 sampai F12.
 
-### Aplikasi dan Shell
+### Aplikasi dan shell
 
 | Shortcut | Aksi |
 |---|---|
-| `SUPER` (tekan lalu lepas) | Launcher Caelestia |
+| `SUPER` | Launcher |
 | `SUPER + Enter` | Terminal |
 | `SUPER + SHIFT + Enter` | Terminal mengambang |
 | `SUPER + B` | Browser |
 | `SUPER + C` | Editor |
 | `SUPER + E` | File manager |
 | `SUPER + D` | Discord (special workspace) |
-| `SUPER + W` | Pilih wallpaper |
+| `SUPER + W` | Pemilih wallpaper |
 | `SUPER + I` / `F9` | Pengaturan Caelestia |
 | `SUPER + N` | Sidebar notifikasi |
-| `SUPER + K` | Tampilkan semua panel |
-| `Copilot` | Terminal + Claude Code |
-| `CTRL + ALT + Delete` | Menu sesi (logout, restart, shutdown) |
-| `CTRL + ALT + V` | Pengaturan audio lengkap |
+| `SUPER + K` | Semua panel |
+| `SUPER + J` | Briefing Jarvis |
+| `Copilot` | Terminal dengan Claude Code |
+| `CTRL + ALT + Delete` | Menu sesi |
+| `CTRL + ALT + V` | Pengaturan audio |
 
 ### Jendela
 
 | Shortcut | Aksi |
 |---|---|
-| `SUPER + Q` | Tutup jendela |
+| `SUPER + Q` | Tutup |
 | `SUPER + F` | Fullscreen |
-| `SUPER + ALT + F` | Maximize (tetap ada border) |
-| `SUPER + ALT + Space` | Floating on/off |
-| `SUPER + SHIFT + P` | Pin jendela |
-| `SUPER + ALT + \` | Mode picture-in-picture |
-| `CTRL + SUPER + \` | Taruh jendela di tengah |
+| `SUPER + ALT + F` | Maximize dengan border |
+| `SUPER + ALT + Space` | Floating |
+| `SUPER + SHIFT + P` | Pin |
+| `SUPER + ALT + \` | Picture-in-picture |
+| `CTRL + SUPER + \` | Ke tengah layar |
 | `SUPER + Panah` | Pindah fokus |
 | `SUPER + SHIFT + Panah` | Pindahkan jendela |
 | `SUPER + -` / `SUPER + =` | Ubah lebar |
-| `SUPER + Klik kiri` / `SUPER + Z` | Geser jendela |
-| `SUPER + Klik kanan` / `SUPER + X` | Ubah ukuran jendela |
-| `ALT + Tab` | Ke jendela sebelumnya |
+| `SUPER + klik kiri` / `SUPER + Z` | Geser |
+| `SUPER + klik kanan` / `SUPER + X` | Ubah ukuran |
+| `ALT + Tab` | Jendela sebelumnya |
 
 ### Workspace
 
 | Shortcut | Aksi |
 |---|---|
-| `SUPER + 1..0` | Ke workspace 1 sampai 10 |
+| `SUPER + 1..0` | Workspace 1 sampai 10 |
 | `SUPER + ALT + 1..0` | Pindahkan jendela ke workspace |
-| `SUPER + Scroll` / `SUPER + Page Up/Down` | Workspace sebelumnya / berikutnya |
+| `SUPER + scroll` / `SUPER + Page Up/Down` | Workspace sebelumnya / berikutnya |
 | `SUPER + S` | Special workspace |
-| `SUPER + M` | Workspace musik (Spotify) |
+| `SUPER + M` | Workspace musik |
 | `SUPER + R` | Workspace todo |
-| `CTRL + SHIFT + Escape` | Workspace system monitor |
-| Swipe 3 jari | Ganti workspace |
+| `CTRL + SHIFT + Escape` | System monitor |
+| Geser 3 jari | Ganti workspace |
 
-### Utilitas dan Tombol Laptop
+### Utilitas
 
 | Shortcut | Aksi |
 |---|---|
-| `F4` | Mute mic (dengan notifikasi) |
-| `F7` / `SUPER + P` | Menu mode layar |
+| `F4` | Mute mic |
+| `F7` / `SUPER + P` | Mode layar |
 | `F8` | Mode pesawat |
-| `F11` | Menu output/input audio |
+| `F11` | Output/input audio |
 | `F12` | Kalkulator |
 | `SUPER + ALT + B` | Mode pengisian baterai |
-| `Print` | Screenshot penuh |
-| `SUPER + SHIFT + S` | Screenshot area (layar dibekukan) |
+| `Print` | Screenshot layar penuh |
+| `SUPER + SHIFT + S` | Screenshot area |
 | `CTRL + ALT + R` | Rekam layar |
-| `SUPER + ALT + R` | Rekam layar dengan suara |
+| `SUPER + ALT + R` | Rekam layar dengan audio |
 | `SUPER + SHIFT + C` | Color picker |
 | `SUPER + V` | Riwayat clipboard |
-| `SUPER + .` | Pemilih emoji |
+| `SUPER + .` | Emoji |
 | `SUPER + L` | Kunci layar |
 | `SUPER + ALT + T` | Touchpad on/off |
-
-### Darurat
-
-| Shortcut | Aksi |
-|---|---|
 | `CTRL + SUPER + ALT + R` | Restart Caelestia Shell |
-| `SUPER + ALT + L` | Pulihkan layar kunci jika shell crash |
+| `SUPER + ALT + L` | Pulihkan layar kunci bila shell crash |
 
-Daftar lengkap keybind bawaan ada di `hypr/variables.lua` bagian `KEYBINDS`.
+Keybind bawaan lengkap ada di `hypr/variables.lua` bagian `KEYBINDS`.
 
 ## Autostart
 
-Bawaan Caelestia (`hypr/hyprland/execs.lua`): gnome-keyring, polkit, cliphist, trash-empty, cursor, gammastep, mpris-proxy, dan `caelestia shell -d`.
+Bawaan Caelestia (`hypr/hyprland/execs.lua`): gnome-keyring, polkit, cliphist, trash-empty, cursor, gammastep, mpris-proxy, `caelestia shell -d`.
 
 Tambahan dari `caelestia/hypr-user.lua`:
 
-- `mic-watch.sh`: notifikasi saat mic di-mute atau dinyalakan
-- `lenovo-keys.py`: membaca tombol F11 Lenovo yang tidak dikenali driver
-- Mode layar terakhir dipasang ulang saat login dan saat monitor dicolok/dicabut
+- `mic-watch.sh`: notifikasi status mic
+- `lenovo-keys.py`: membaca tombol F11 yang tidak dikenali driver
+- `jarvis greet` dan `jarvis battery`
+- `kdeconnectd` dan `kdeconnect-indicator`
+- Mode layar terakhir diterapkan saat login dan saat monitor berubah
 
-## Khusus Perangkat Keras
+## Catatan perangkat keras
 
-Bagian ini dibuat untuk Lenovo IdeaPad Slim 5 AMD. Di laptop lain, bagian-bagian ini tidak merusak apa pun, hanya tidak berfungsi:
+Bagian berikut ditujukan untuk IdeaPad Slim 5 AMD. Di perangkat lain bagian ini tidak berfungsi, tetapi tidak merusak apa pun.
 
 | Bagian | Catatan |
 |---|---|
-| `lenovo-keys.py` (F11) | Hanya untuk perangkat "Ideapad extra buttons". Di laptop lain script ini langsung berhenti |
-| Mode baterai | Butuh `/sys/class/power_supply/BAT0/charge_types` (driver ideapad). Laptop lain bisa beda nama atau tidak punya |
-| Perbaikan mic (`blacklist-amd-dmic.conf`) | **Hanya** untuk IdeaPad Slim 5 AMD yang mic internalnya tidak menangkap suara. Mic digital AMD dimatikan supaya mic analog Conexant dipakai. Lihat [alsa-ucm-conf#612](https://github.com/alsa-project/alsa-ucm-conf/issues/612). Installer menanyakan dulu sebelum memasang |
-| Tombol Copilot | Dibaca sebagai `SUPER + SHIFT + code:201`. Keyboard lain bisa berbeda |
-| Resolusi tema GRUB | Diatur untuk 1920x1200. Ganti `GRUB_GFXMODE` sesuai layarmu |
+| `lenovo-keys.py` | Hanya untuk perangkat input "Ideapad extra buttons"; berhenti sendiri bila tidak ditemukan |
+| Mode baterai, Jarvis battery | Membaca `/sys/class/power_supply/BAT0` dan `ACAD` (driver ideapad) |
+| `blacklist-amd-dmic.conf` | Hanya untuk unit yang mic internalnya tidak menangkap suara. Mic digital AMD dinonaktifkan agar mic analog Conexant dipakai. Referensi: [alsa-ucm-conf#612](https://github.com/alsa-project/alsa-ucm-conf/issues/612). Installer meminta konfirmasi |
+| Tombol Copilot | Terbaca sebagai `SUPER + SHIFT + code:201` |
+| Tema GRUB | Dibuat untuk 1920x1200; sesuaikan `GRUB_GFXMODE` |
 
-## Catatan
+## Pemecahan masalah
 
-- `hypr/scheme/current.*`, `rofi/colors.rasi`, dan file di `~/.local/state/caelestia/theme/` dibuat ulang otomatis setiap ganti wallpaper. Jangan diedit manual.
-- Picker wallpaper (`SUPER + W`) mengambil gambar dari `~/Pictures/wallpapers`.
-- Kalau tema Spotify hilang setelah Spotify di-update, jalankan `spicetify backup apply`.
-- Kalau sapaan login kembali besar setelah update tema, jalankan `sudo caelestia-sddm-greeting`. Biasanya ini sudah otomatis lewat hook pacman.
+| Gejala | Solusi |
+|---|---|
+| Tema Spotify hilang setelah update | `spicetify backup apply` |
+| Sapaan login kembali ke bawaan | `sudo caelestia-sddm-greeting` (biasanya otomatis lewat hook pacman) |
+| Tab baru Zen tidak memakai startpage | Jalankan `./install.sh --system`, lalu tutup Zen sepenuhnya dan buka ulang |
+| Panel media menampilkan "Unknown artist" | Pilih Spotify lewat tombol pemutar di panel media |
+| Jarvis tidak bersuara | Cek `~/.local/share/piper/voices/jarvis-high.onnx` ada dan `ffmpeg` terpasang; coba `jarvis say test` |
+
+File `hypr/scheme/current.*`, `rofi/colors.rasi`, dan isi `~/.local/state/caelestia/theme/` dibuat ulang setiap ganti wallpaper; jangan diedit langsung. Pemilih wallpaper membaca `~/Pictures/wallpapers`.
 
 ## Kredit
 
-- [caelestia-dots](https://github.com/caelestia-dots) oleh [soramanew](https://github.com/soramanew): shell dan struktur dotfiles yang menjadi dasar setup ini
-- [caelestia-sddm](https://github.com/ItsABigIgloo/caelestia-sddm) oleh ItsABigIgloo: tema layar login
-- [Hyprland](https://hyprland.org)
-- [Quickshell](https://quickshell.org)
+- [caelestia-dots](https://github.com/caelestia-dots) oleh [soramanew](https://github.com/soramanew)
+- [caelestia-sddm](https://github.com/ItsABigIgloo/caelestia-sddm) oleh ItsABigIgloo
+- [Piper](https://github.com/OHF-Voice/piper1-gpl) dan model suara [jgkawell/jarvis](https://huggingface.co/jgkawell/jarvis)
+- [Hyprland](https://hyprland.org), [Quickshell](https://quickshell.org)
