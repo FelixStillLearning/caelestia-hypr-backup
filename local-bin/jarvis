@@ -608,11 +608,8 @@ def command(text):
     return None
 
 
-def claude_reply(text, history):
+def ask_claude(prompt):
     exe = shutil.which("claude") or str(HOME / ".local/bin/claude")
-    convo = "".join(f"User: {u}\nJARVIS: {a}\n" for u, a in history[-8:])
-    now = datetime.now().strftime("%A %d %B %Y, %H:%M")
-    prompt = f"Current time: {now}.\n{convo}User: {text}\nJARVIS:"
     # folder sendiri + sesi tidak disimpan: tidak membaca memori proyek kerja dan tidak muncul di daftar sesi
     room = STATE / "claude"
     room.mkdir(parents=True, exist_ok=True)
@@ -627,7 +624,30 @@ def claude_reply(text, history):
                              cwd=room, capture_output=True, text=True, timeout=45).stdout.strip()
     except (OSError, subprocess.TimeoutExpired):
         out = ""
-    return out.replace("*", "").strip() or "I am afraid my connection to the cloud failed, sir."
+    return out.replace("*", "").strip()
+
+
+ID_WORDS = {"yang", "adalah", "dan", "untuk", "dengan", "ini", "itu", "tidak", "saya", "anda", "dari", "atau",
+            "dalam", "bisa", "akan", "pada", "juga", "kamu", "sebuah", "seperti"}
+
+
+def indonesian(text):
+    words = re.findall(r"[a-z]+", text.lower())
+    return sum(w in ID_WORDS for w in words) >= 3
+
+
+def claude_reply(text, history):
+    convo = "".join(f"User: {u}\nJARVIS: {a}\n" for u, a in history[-8:])
+    now = datetime.now().strftime("%A %d %B %Y, %H:%M")
+    # instruksi bahasa di akhir prompt: kalau di awal, Claude cenderung mengikuti bahasa pertanyaan
+    prompt = (f"Current time: {now}.\n{convo}User: {text}\n\n"
+              "Reply as JARVIS in English only, even though the user may have spoken Indonesian. "
+              "At most two short spoken sentences.\nJARVIS:")
+    out = ask_claude(prompt)
+    if out and indonesian(out):  # masih terlanjur bahasa Indonesia: terjemahkan
+        out = ask_claude(f"Translate into natural spoken English, keep the butler tone and 'sir', "
+                         f"output only the translation:\n{out}") or out
+    return out or "I am afraid my connection to the cloud failed, sir."
 
 
 def log(msg):
