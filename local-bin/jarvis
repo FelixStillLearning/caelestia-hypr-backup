@@ -50,14 +50,16 @@ TEMP_MAX = 90                # derajat C, CPU (k10temp)
 RAM_MIN = 0.07
 DISK_MIN = 0.10
 COOLDOWN = 30 * 60           # detik antar peringatan sistem yang sama
-WAKE_THRESHOLD = 0.5         # skor openWakeWord "hey jarvis"
+WAKE_THRESHOLD = 0.4         # skor openWakeWord "hey jarvis" (lihat "near miss" di listen.log untuk menyetel)
+MIC_GAIN = 3.0               # penguatan mic khusus Jarvis (mic laptop ini pelan)
 WHISPER_MODEL = "small"      # multibahasa, cukup akurat untuk bahasa Indonesia
 # kosakata yang sering diucapkan, supaya Whisper mengeja nama aplikasi dengan benar
 WHISPER_HINT = ("Jarvis, buka Discord, Spotify, Obsidian, Zen, VS Code, terminal. "
                 "Lagu berikutnya, putar lagu, kunci laptop, cari HP. Open Discord, next song.")
 PERSONA = ("You are JARVIS, the calm, witty British AI butler of the user, whom you call 'sir'. "
-           "He may speak Indonesian or English; always answer in English. Reply in at most two short "
-           "spoken sentences, no lists, no markdown, no emoji.")
+           "He may speak Indonesian or English; always answer in English only, never in Indonesian, even if asked. Reply in at most two short "
+           "spoken sentences, no lists, no markdown, no emoji. You are a voice assistant on his laptop with no "
+           "tools or file access; never mention workspaces, terminals, tools, or files.")
 
 
 def config():
@@ -609,12 +611,20 @@ def claude_reply(text, history):
     convo = "".join(f"User: {u}\nJARVIS: {a}\n" for u, a in history[-3:])
     now = datetime.now().strftime("%A %d %B %Y, %H:%M")
     prompt = f"Current time: {now}.\n{convo}User: {text}\nJARVIS:"
-    nomcp = STATE / "no-mcp.json"
+    # folder sendiri + sesi tidak disimpan: tidak membaca memori proyek kerja dan tidak muncul di daftar sesi
+    room = STATE / "claude"
+    room.mkdir(parents=True, exist_ok=True)
+    nomcp = room / "no-mcp.json"
     if not nomcp.exists():
-        STATE.mkdir(parents=True, exist_ok=True)
         nomcp.write_text('{"mcpServers": {}}')
-    out = run(exe, "-p", "--model", "haiku", "--tools", "", "--disable-slash-commands", "--strict-mcp-config",
-              "--mcp-config", str(nomcp), "--system-prompt", PERSONA, prompt, timeout=45)
+    try:
+        out = subprocess.run([exe, "-p", "--model", "haiku", "--tools", "", "--no-session-persistence",
+                              "--disable-slash-commands", "--strict-mcp-config", "--mcp-config", str(nomcp),
+                              "--setting-sources", "project,local",  # tanpa plugin/hook dari pengaturan user
+                              "--system-prompt", PERSONA, prompt],
+                             cwd=room, capture_output=True, text=True, timeout=45).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        out = ""
     return out.replace("*", "").strip() or "I am afraid my connection to the cloud failed, sir."
 
 
@@ -634,7 +644,7 @@ def listen():
     (STATE / "listen.log").write_text("")  # log baru tiap daemon mulai
     wake = Model(wakeword_models=["hey_jarvis"], inference_framework="onnx")
     vad = VAD()
-    stt = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
+    stt = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8", cpu_threads=8)
     cues = {}
     for name, text in (("yes", "Yes, sir?"), ("moment", "One moment, sir."), ("missed", "I did not catch that, sir.")):
         cues[name] = RUNTIME / f"jarvis-{name}.wav"
@@ -663,26 +673,15 @@ def listen():
             rec = None
 
     def chunk():
-        data = rec.stdout.read(CHUNK * 2)
-        return np.frombuffer(data, dtype=np.int16)
-
-    def drain():
-        """Buang audio yang tertampung selama Jarvis bicara (suaranya sendiri)."""
-        fd = rec.stdout.fileno()
-        os.set_blocking(fd, False)
-        try:
-            while os.read(fd, 65536):
-                pass
-        except BlockingIOError:
-            pass
-        finally:
-            os.set_blocking(fd, True)
+        # mic laptop pelan: dikuatkan di sini saja, volume mic untuk aplikasi lain tidak berubah
+        a = np.frombuffer(rec.stdout.read(CHUNK * 2), dtype=np.int16).astype(np.float32) * MIC_GAIN
+        return np.clip(a, -32768, 32767).astype(np.int16)
 
     def record_utterance():
-        """Rekam sampai 0.7 detik hening setelah bicara (VAD Silero), maksimal 10 detik."""
+        """Rekam sampai 0.7 detik hening setelah bicara (VAD Silero), maksimal 8 detik."""
         vad.reset_states()
         frames, spoke, silent = [], False, 0
-        for i in range(125):
+        for i in range(100):
             a = chunk()
             frames.append(a)
             if vad.predict(a, frame_size=640) > 0.5:
@@ -701,7 +700,7 @@ def listen():
                                  condition_on_previous_text=False)
         return " ".join(x.text for x in segs).strip()
 
-    paused, checked, shown, pushed = None, 0.0, "", 0.0
+    paused, checked, shown, pushed, near = None, 0.0, "", 0.0, 0.0
     while True:
         if time.monotonic() - checked > 1:  # cek alasan berhenti tiap detik
             checked = time.monotonic()
@@ -725,12 +724,16 @@ def listen():
             continue
         score = 1.0 if manual.is_set() else wake.predict(a).get("hey_jarvis", 0)
         if score <= WAKE_THRESHOLD:
+            if score > 0.15 and time.monotonic() - near > 2:  # hampir terpanggil: dicatat untuk menyetel ambang
+                near = time.monotonic()
+                log(f"near miss score={score:.2f}")
             continue
         manual.clear()
         wake.reset()
         log(f"wake score={score:.2f}")
+        close_mic()  # audio yang tertampung selama Jarvis bicara/berpikir ikut terbuang
         play(str(cues["yes"]), "Yes, sir?")
-        drain()
+        open_mic()
         island("hear")
         t0 = time.monotonic()
         audio = record_utterance()
@@ -738,6 +741,7 @@ def listen():
             log("no speech")
             island("idle")
             continue
+        close_mic()
         island("think")
         t1 = time.monotonic()
         text = transcribe(audio)
