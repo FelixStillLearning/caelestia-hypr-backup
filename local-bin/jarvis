@@ -15,6 +15,7 @@
 Pengaturan pribadi (token, kalender, tanggal seminar): ~/.config/jarvis/config.json
 """
 import array
+import collections
 import fcntl
 import json
 import os
@@ -50,7 +51,9 @@ TEMP_MAX = 90                # derajat C, CPU (k10temp)
 RAM_MIN = 0.07
 DISK_MIN = 0.10
 COOLDOWN = 30 * 60           # detik antar peringatan sistem yang sama
-WAKE_THRESHOLD = 0.4         # skor openWakeWord "hey jarvis" (lihat "near miss" di listen.log untuk menyetel)
+WAKE_THRESHOLD = 0.5         # skor openWakeWord "hey jarvis" yang langsung diterima
+WAKE_PRE = 0.15              # skor di atas ini dicek ulang oleh Whisper (logat Indonesia skornya rendah)
+WAKE_WORD = re.compile(r"j[ae]r?[vfb]+[ie]?s|jarv|javis|jervis", re.I)
 MIC_GAIN = 1.0               # penguatan mic khusus Jarvis (naikkan kalau volume input sistem rendah)
 FOLLOW_UP_WAIT = 6           # detik menunggu balasanmu setelah Jarvis menjawab
 HISTORY_RESET = 10 * 60      # konteks obrolan dilupakan setelah 10 menit tidak ngobrol
@@ -681,6 +684,7 @@ def listen():
 
     rec = None
     CHUNK = 1280  # 80 ms
+    recent = collections.deque(maxlen=25)  # 2 detik terakhir, untuk verifikasi wake word
 
     def open_mic():
         nonlocal rec
@@ -690,6 +694,7 @@ def listen():
 
     def close_mic():
         nonlocal rec
+        recent.clear()
         if rec is not None:
             rec.kill()
             rec.wait()
@@ -720,6 +725,16 @@ def listen():
                 break
         return np.concatenate(frames).astype(np.float32) / 32768
 
+    def says_jarvis():
+        """Whisper memastikan 2 detik terakhir memang berisi "Jarvis"."""
+        for _ in range(4):  # ambil sisa ucapan (sekitar 0.3 detik)
+            recent.append(chunk())
+        audio = np.concatenate(recent).astype(np.float32) / 32768
+        segs, _ = stt.transcribe(audio, language="en", beam_size=1, initial_prompt="Hey Jarvis.",
+                                 condition_on_previous_text=False, without_timestamps=True)
+        text = " ".join(x.text for x in segs).strip()
+        return bool(WAKE_WORD.search(text)), text
+
     def transcribe(audio):
         # bahasa dikunci ke Indonesia: tidak salah tebak (misalnya Rusia), kalimat Inggris tetap terbaca utuh
         segs, _ = stt.transcribe(audio, language="id", beam_size=1, initial_prompt=WHISPER_HINT,
@@ -747,13 +762,18 @@ def listen():
             continue
         if SPEAKING.exists():
             wake.reset()
+            recent.clear()
             continue
+        recent.append(a)
         score = 1.0 if manual.is_set() else wake.predict(a).get("hey_jarvis", 0)
         if score <= WAKE_THRESHOLD:
-            if score > 0.15 and time.monotonic() - near > 2:  # hampir terpanggil: dicatat untuk menyetel ambang
-                near = time.monotonic()
-                log(f"near miss score={score:.2f}")
-            continue
+            if score <= WAKE_PRE or time.monotonic() - near < 1.5:
+                continue
+            near = time.monotonic()
+            ok, heard = says_jarvis()
+            log(f"check score={score:.2f} -> {'wake' if ok else 'no'} {heard!r}")
+            if not ok:
+                continue
         manual.clear()
         wake.reset()
         log(f"wake score={score:.2f}")
