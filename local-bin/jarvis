@@ -9,7 +9,7 @@
   jarvis listen              daemon: "Hey Jarvis", perintah suara, dan ngobrol (Claude Code)
   jarvis ask                 mulai mendengar tanpa wake word (Super+Shift+J)
   jarvis toggle              nyalakan/matikan pendengaran "Hey Jarvis" (Super+Alt+J)
-                             (otomatis mati saat tidak dicas atau saat aplikasi lain memakai mic)
+                             (otomatis mati saat aplikasi lain memakai mic)
   jarvis done STATUS PID CMD dipanggil fish saat perintah lama selesai
 
 Pengaturan pribadi (token, kalender, tanggal seminar): ~/.config/jarvis/config.json
@@ -722,11 +722,9 @@ def listen():
 
 
 def pause_reason(own_pid):
-    """Kenapa pendengaran harus mati: dimatikan manual, tidak dicas, atau aplikasi lain memakai mic (call)."""
+    """Kenapa pendengaran harus mati: dimatikan manual atau aplikasi lain memakai mic (call)."""
     if LISTEN_OFF.exists():
         return "off"
-    if read(PS / "ACAD/online") != "1":
-        return "battery"
     try:
         sources = {str(x["index"]): x["name"] for x in json.loads(run("pactl", "-f", "json", "list", "sources") or "[]")}
         outputs = json.loads(run("pactl", "-f", "json", "list", "source-outputs") or "[]")
