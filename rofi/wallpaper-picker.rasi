@@ -4,7 +4,7 @@
 configuration {
     modi:       "dmenu";
     show-icons: true;
-    font:       "Rubik 10";
+    font:       "SF Pro Text 10";
 }
 
 * {
@@ -42,7 +42,7 @@ textbox-prompt-colon {
     text-color:     @on-surface-variant;
 }
 entry {
-    font:              "Rubik 12";
+    font:              "SF Pro Text 12";
     vertical-align:    0.5;
     cursor:            text;
     placeholder:       "Search wallpapers";
