@@ -1,0 +1,46 @@
+/* Warna Caelestia untuk Obsidian (snippet "caelestia", di atas tema apa pun).
+   Template: ~/.config/caelestia/templates/obsidian-caelestia.css
+   Dirender ulang setiap ganti wallpaper; Obsidian memuatnya lewat symlink
+   <vault>/.obsidian/snippets/caelestia.css. */
+
+body.theme-dark,
+body.theme-light {
+    --color-accent: #{{ primary.hex }};
+    --color-accent-1: #{{ primary.hex }};
+    --color-accent-2: #{{ primaryDim.hex }};
+    --interactive-accent: #{{ primary.hex }};
+    --interactive-accent-hover: #{{ primaryDim.hex }};
+    --text-on-accent: #{{ onPrimary.hex }};
+    --text-accent: #{{ primary.hex }};
+    --text-accent-hover: #{{ tertiary.hex }};
+
+    --background-primary: #{{ surface.hex }};
+    --background-primary-alt: #{{ surfaceContainerLow.hex }};
+    --background-secondary: #{{ surfaceContainer.hex }};
+    --background-secondary-alt: #{{ surfaceContainerHigh.hex }};
+    --background-modifier-border: #{{ outlineVariant.hex }};
+    --background-modifier-hover: color-mix(in srgb, #{{ onSurface.hex }} 8%, transparent);
+    --background-modifier-active-hover: color-mix(in srgb, #{{ primary.hex }} 18%, transparent);
+    --titlebar-background: #{{ surfaceContainer.hex }};
+    --titlebar-background-focused: #{{ surfaceContainer.hex }};
+    --tab-container-background: #{{ surfaceContainer.hex }};
+    --ribbon-background: #{{ surfaceContainer.hex }};
+
+    --text-normal: #{{ onSurface.hex }};
+    --text-muted: #{{ onSurfaceVariant.hex }};
+    --text-faint: #{{ outline.hex }};
+    --text-selection: color-mix(in srgb, #{{ primary.hex }} 30%, transparent);
+    --text-highlight-bg: color-mix(in srgb, #{{ tertiary.hex }} 30%, transparent);
+
+    --h1-color: #{{ primary.hex }};
+    --h2-color: #{{ secondary.hex }};
+    --h3-color: #{{ tertiary.hex }};
+    --link-color: #{{ primary.hex }};
+    --link-external-color: #{{ tertiary.hex }};
+    --link-unresolved-color: #{{ outline.hex }};
+    --checkbox-color: #{{ primary.hex }};
+    --tag-color: #{{ onSecondaryContainer.hex }};
+    --tag-background: #{{ secondaryContainer.hex }};
+    --code-background: #{{ surfaceContainerLow.hex }};
+    --blockquote-border-color: #{{ primary.hex }};
+}

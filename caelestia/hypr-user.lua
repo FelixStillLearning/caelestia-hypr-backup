@@ -86,3 +86,19 @@ hl.bind("XF86Calculator", hl.dsp.exec_cmd("gnome-calculator"))
 hl.bind("XF86RFKill", hl.dsp.exec_cmd("~/.local/bin/airplane-mode.sh"), locked)
 -- F9 (gerigi): pengaturan Caelestia (Nexus)
 hl.bind("SUPER + I", hl.dsp.exec_cmd("caelestia shell nexus open"))
+
+-- Kursor ikut terlihat saat share screen (Discord/Chrome tidak menangkap hardware cursor)
+hl.config({ cursor = { no_hardware_cursors = 1 } })
+
+-- Jarvis: sambutan login, peringatan baterai/charger, briefing di Super+J
+hl.on("hyprland.start", function()
+    hl.exec_cmd("sleep 3; ~/.local/bin/jarvis greet")
+    hl.exec_cmd("~/.local/bin/jarvis battery")
+end)
+hl.bind("SUPER + J", hl.dsp.exec_cmd("~/.local/bin/jarvis brief"))
+
+-- KDE Connect: daemon + ikon di tray (kirim file, ring phone, dsb.)
+hl.on("hyprland.start", function()
+    hl.exec_cmd("/usr/bin/kdeconnectd")
+    hl.exec_cmd("sleep 2; kdeconnect-indicator")
+end)

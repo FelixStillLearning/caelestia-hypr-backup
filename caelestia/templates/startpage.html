@@ -1,0 +1,109 @@
+<!doctype html>
+<!-- Startpage Zen bergaya Caelestia. Template: ~/.config/caelestia/templates/startpage.html
+     Dirender ulang setiap ganti wallpaper. Ubah daftar shortcut di LINKS bawah. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>New Tab</title>
+<style>
+:root {
+    --surface: #{{ surface.hex }};
+    --card: #{{ surfaceContainer.hex }};
+    --card-hi: #{{ surfaceContainerHigh.hex }};
+    --text: #{{ onSurface.hex }};
+    --muted: #{{ onSurfaceVariant.hex }};
+    --primary: #{{ primary.hex }};
+    --chip: #{{ secondaryContainer.hex }};
+    --on-chip: #{{ onSecondaryContainer.hex }};
+    --outline: #{{ outlineVariant.hex }};
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body {
+    background: var(--surface);
+    color: var(--text);
+    font-family: "Rubik", sans-serif;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+}
+#bg {
+    position: fixed; inset: -60px;
+    background: center / cover no-repeat;
+    filter: blur(28px) brightness(0.6);
+    z-index: -1;
+}
+main { display: flex; flex-direction: column; align-items: center; gap: 28px; width: min(640px, 90vw); }
+.greet { font-size: 22px; color: var(--muted); letter-spacing: 0.5px; }
+.clock { font-size: 112px; font-weight: 500; line-height: 1; color: var(--primary); font-variant-numeric: tabular-nums; }
+.date { font-size: 18px; color: var(--muted); margin-top: -12px; }
+form { width: 100%; }
+input {
+    width: 100%; padding: 16px 24px; border: 1px solid var(--outline); border-radius: 999px;
+    background: color-mix(in srgb, var(--card) 85%, transparent); color: var(--text);
+    font: inherit; font-size: 17px; outline: none; backdrop-filter: blur(12px);
+}
+input::placeholder { color: var(--muted); }
+input:focus { border-color: var(--primary); }
+.links { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; width: 100%; }
+.links a {
+    display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 8px;
+    border-radius: 20px; background: color-mix(in srgb, var(--card) 80%, transparent);
+    color: var(--muted); text-decoration: none; font-size: 13px; transition: background .2s, color .2s, transform .2s;
+}
+.links a:hover { background: var(--chip); color: var(--on-chip); transform: translateY(-2px); }
+.links img { width: 28px; height: 28px; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div id="bg"></div>
+<main>
+    <div class="greet">Welcome back, sir.</div>
+    <div class="clock" id="clock">00:00</div>
+    <div class="date" id="date"></div>
+    <form id="search"><input id="q" placeholder="Search Google or type a URL" autofocus autocomplete="off"></form>
+    <nav class="links" id="links"></nav>
+</main>
+<script>
+const LINKS = [
+    ["YouTube", "https://youtube.com"],
+    ["GitHub", "https://github.com"],
+    ["Gmail", "https://mail.google.com", "https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico"],
+    ["Drive", "https://drive.google.com", "https://ssl.gstatic.com/images/branding/product/1x/drive_2020q4_32dp.png"],
+    ["Scholar", "https://scholar.google.com"],
+    ["WhatsApp", "https://web.whatsapp.com", "https://www.google.com/s2/favicons?sz=64&domain=whatsapp.com"],
+    ["Claude", "https://claude.ai"],
+    ["Spotify", "https://open.spotify.com"],
+];
+
+document.getElementById("bg").style.backgroundImage = `url("../wallpaper/current?${Date.now()}")`;
+
+const nav = document.getElementById("links");
+for (const [name, url, icon] of LINKS) {  // icon opsional: URL gambar ikon
+    const a = document.createElement("a");
+    a.href = url;
+    const img = document.createElement("img");
+    img.src = icon || `https://www.google.com/s2/favicons?sz=64&domain=${new URL(url).hostname}`;
+    img.alt = "";
+    a.append(img, name);
+    nav.append(a);
+}
+
+function tick() {
+    const d = new Date();
+    document.getElementById("clock").textContent = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    document.getElementById("date").textContent = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+}
+tick();
+setInterval(tick, 1000);
+
+document.getElementById("search").onsubmit = e => {
+    e.preventDefault();
+    const q = document.getElementById("q").value.trim();
+    if (!q) return;
+    const isUrl = /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(q) || /^https?:\/\//.test(q);
+    location.href = isUrl ? (/^https?:\/\//.test(q) ? q : "https://" + q) : "https://www.google.com/search?q=" + encodeURIComponent(q);
+};
+</script>
+</body>
+</html>

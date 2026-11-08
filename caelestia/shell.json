@@ -9,6 +9,21 @@
     },
     "services": {
         "dataUnits": "Decimal",
-        "weatherUnits": "Celsius"
+        "weatherUnits": "Celsius",
+        "defaultPlayer": "Spotify"
+    },
+    "background": {
+        "desktopClock": {
+            "enabled": true,
+            "position": "bottom-right",
+            "shadow": {
+                "enabled": true
+            }
+        },
+        "visualiser": {
+            "enabled": true,
+            "autoHide": true,
+            "blur": true
+        }
     }
 }
