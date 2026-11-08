@@ -8,6 +8,8 @@
                              lock, shutdown, info jam, notifikasi penting, baterai HP
   jarvis listen              daemon: "Hey Jarvis", perintah suara, dan ngobrol (Claude Code)
   jarvis ask                 mulai mendengar tanpa wake word (Super+Shift+J)
+  jarvis toggle              nyalakan/matikan pendengaran "Hey Jarvis" (Super+Alt+J)
+                             (otomatis mati saat tidak dicas atau saat aplikasi lain memakai mic)
   jarvis done STATUS PID CMD dipanggil fish saat perintah lama selesai
 
 Pengaturan pribadi (token, kalender, tanggal seminar): ~/.config/jarvis/config.json
@@ -40,6 +42,7 @@ PS = Path("/sys/class/power_supply")
 RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
 SPEAKING = RUNTIME / "jarvis-speaking"
 LISTEN_PID = RUNTIME / "jarvis-listen.pid"
+LISTEN_OFF = STATE / "listen-off"             # ada = pendengaran dimatikan manual (Super+Alt+J)
 LOW = (20, 10, 5)            # persen baterai laptop, masing-masing sekali per sesi tidak dicas
 PHONE_LOW = 15               # persen baterai HP
 QUIET = (22, 7)              # jam tenang: kabar non-darurat tidak diucapkan
@@ -614,9 +617,21 @@ def listen():
     signal.signal(signal.SIGUSR1, lambda *_: manual.set())
     history = []
 
-    rec = subprocess.Popen(["parec", "--raw", "--rate=16000", "--channels=1", "--format=s16le",
-                            "--latency-msec=80"], stdout=subprocess.PIPE)
+    rec = None
     CHUNK = 1280  # 80 ms
+
+    def open_mic():
+        nonlocal rec
+        if rec is None:
+            rec = subprocess.Popen(["parec", "--raw", "--rate=16000", "--channels=1", "--format=s16le",
+                                    "--latency-msec=80"], stdout=subprocess.PIPE)
+
+    def close_mic():
+        nonlocal rec
+        if rec is not None:
+            rec.kill()
+            rec.wait()
+            rec = None
 
     def chunk():
         data = rec.stdout.read(CHUNK * 2)
@@ -655,9 +670,23 @@ def listen():
                 return None
         return np.concatenate(frames).astype(np.float32) / 32768
 
+    paused, checked, shown, pushed = None, 0.0, "", 0.0
     while True:
+        if time.monotonic() - checked > 1:  # cek alasan berhenti tiap detik
+            checked = time.monotonic()
+            paused = pause_reason(rec.pid if rec else None)
+            state = "false" if paused else "true"
+            if state != shown or time.monotonic() - pushed > 10:  # poni bisa baru dijalankan ulang
+                island("mic", state)
+                shown, pushed = state, time.monotonic()
+        if paused and not manual.is_set():
+            close_mic()
+            manual.wait(1)
+            continue
+        open_mic()
         a = chunk()
         if len(a) < CHUNK:
+            close_mic()
             time.sleep(1)
             continue
         if SPEAKING.exists():
@@ -692,6 +721,34 @@ def listen():
             island("idle")
 
 
+def pause_reason(own_pid):
+    """Kenapa pendengaran harus mati: dimatikan manual, tidak dicas, atau aplikasi lain memakai mic (call)."""
+    if LISTEN_OFF.exists():
+        return "off"
+    if read(PS / "ACAD/online") != "1":
+        return "battery"
+    try:
+        sources = {str(x["index"]): x["name"] for x in json.loads(run("pactl", "-f", "json", "list", "sources") or "[]")}
+        outputs = json.loads(run("pactl", "-f", "json", "list", "source-outputs") or "[]")
+    except ValueError:
+        return None
+    for o in outputs:
+        pid = o["properties"].get("application.process.id")
+        if not sources.get(str(o["source"]), ".monitor").endswith(".monitor") and str(pid) != str(own_pid):
+            return "call"
+    return None
+
+
+def toggle():
+    STATE.mkdir(parents=True, exist_ok=True)
+    if LISTEN_OFF.exists():
+        LISTEN_OFF.unlink()
+        say("Listening enabled, sir.")
+    else:
+        LISTEN_OFF.touch()
+        say("Listening disabled, sir.")
+
+
 def ask():
     try:
         os.kill(int(read(LISTEN_PID)), signal.SIGUSR1)
@@ -707,7 +764,8 @@ if __name__ == "__main__":
         say(" ".join(sys.argv[2:]))
     elif cmd == "done" and len(sys.argv) > 3:
         done(sys.argv[2], sys.argv[3], " ".join(sys.argv[4:]))
-    elif cmd in ("greet", "brief", "watch", "battery", "listen", "ask"):
-        {"greet": greet, "brief": brief, "watch": watch, "battery": watch, "listen": listen, "ask": ask}[cmd]()
+    elif cmd in ("greet", "brief", "watch", "battery", "listen", "ask", "toggle"):
+        {"greet": greet, "brief": brief, "watch": watch, "battery": watch, "listen": listen, "ask": ask,
+         "toggle": toggle}[cmd]()
     else:
         sys.exit(__doc__)

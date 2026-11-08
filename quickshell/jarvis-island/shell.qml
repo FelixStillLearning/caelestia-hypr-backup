@@ -25,6 +25,9 @@ ShellRoot {
         }
     }
 
+    // titik oranye = Jarvis sedang mendengarkan mic (dikirim jarvis listen lewat IPC "mic")
+    property bool micOn: false
+
     // ---- status: idle | media | speak | listen | think ----
     property string mode: "idle"
     property string caption: ""
@@ -88,6 +91,7 @@ ShellRoot {
         function hear(): void { root.caption = "Listening..."; root.show("listen", 10000); }
         function think(): void { root.caption = "Thinking..."; root.show("think", 30000); }
         function idle(): void { root.mode = "idle"; }
+        function mic(on: bool): void { root.micOn = on; }
     }
 
     PanelWindow {
@@ -102,14 +106,26 @@ ShellRoot {
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
         mask: Region { item: pill }
 
+        Rectangle {  // titik mic saat poni tersembunyi
+            id: micDot
+            width: 6; height: 6; radius: 3
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: 4
+            color: "#ff9f0a"
+            opacity: root.micOn && !pill.open ? 0.9 : 0
+            Behavior on opacity { NumberAnimation { duration: 250 } }
+        }
+
         Rectangle {
             id: pill
 
             readonly property bool open: root.mode !== "idle"
             anchors.horizontalCenter: parent.horizontalCenter
-            y: 0
+            // diam = tersembunyi di atas layar, turun hanya saat ada interaksi
+            y: open ? 0 : -height - 12
+            opacity: open ? 1 : 0
             width: root.mode === "media" ? 440 : root.mode === "speak" ? Math.min(580, 120 + caption.implicitWidth)
-                 : open ? 240 : (root.playing ? 150 : 120)
+                 : open ? 240 : 120
             height: open ? 62 : 30
             radius: height / 2
             color: root.col("surfaceContainer", 0.62)
@@ -120,6 +136,8 @@ ShellRoot {
             // efek "liquid": pegas sedikit memantul saat melebar
             Behavior on width { SpringAnimation { spring: 4; damping: 0.28; epsilon: 0.5 } }
             Behavior on height { SpringAnimation { spring: 4; damping: 0.32; epsilon: 0.5 } }
+            Behavior on y { SpringAnimation { spring: 4; damping: 0.35; epsilon: 0.5 } }
+            Behavior on opacity { NumberAnimation { duration: 220 } }
 
             // kilau kaca di bagian atas
             Rectangle {
@@ -137,27 +155,12 @@ ShellRoot {
                 onClicked: if (root.player) root.show("media", 5000)
             }
 
-            // ---- idle: tiga bar kecil saat musik diputar ----
-            Row {
-                anchors.centerIn: parent
-                spacing: 3
-                opacity: !pill.open && root.playing ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: 200 } }
-                Repeater {
-                    model: 3
-                    Rectangle {
-                        required property int index
-                        width: 3; radius: 1.5
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: root.col("primary")
-                        SequentialAnimation on height {
-                            running: root.playing
-                            loops: Animation.Infinite
-                            NumberAnimation { to: 12; duration: 300 + index * 120; easing.type: Easing.InOutSine }
-                            NumberAnimation { to: 4; duration: 300 + index * 120; easing.type: Easing.InOutSine }
-                        }
-                    }
-                }
+            Rectangle {
+                width: 6; height: 6; radius: 3
+                anchors { right: parent.right; rightMargin: 13; verticalCenter: parent.verticalCenter }
+                color: "#ff9f0a"
+                opacity: root.micOn ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 250 } }
             }
 
             // ---- orb (bicara / mendengar / berpikir) ----
