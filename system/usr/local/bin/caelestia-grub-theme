@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+"""Tema GRUB bergaya Caelestia: latar wallpaper diburamkan, kartu menu membulat,
+font Rubik, pill pilihan warna aksen. Warna dan wallpaper diambil dari Caelestia.
+
+  sudo caelestia-grub-theme      buat/perbarui /boot/grub/themes/caelestia
+  (dipanggil otomatis lewat postHook Caelestia setiap ganti wallpaper)
+
+Gambar dibuat sebagai user biasa (sudo -u), root hanya menyalin hasil yang sudah
+dicek ke /boot, jadi file milik user tidak pernah dibuka oleh root."""
+import json
+import os
+import pwd
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+DEST = Path("/boot/grub/themes/caelestia")
+FONTS = Path("/usr/local/share/caelestia-grub-theme")
+W, H = 1920, 1200
+SLICES = ("nw", "n", "ne", "w", "c", "e", "sw", "s", "se")
+OUTPUTS = ["theme.txt", "background.jpg"] + [f"{b}_{s}.png" for b in ("menu", "select") for s in SLICES]
+MAX_BYTES = 20 * 1024 * 1024
+
+
+def box(prefix, out, rgba, r):
+    """9-slice kotak membulat (radius r) untuk menu/pill GRUB."""
+    from PIL import Image, ImageDraw
+
+    s = 4  # supersampling biar tepi halus
+    big = Image.new("RGBA", (2 * r * s + s, 2 * r * s + s), (0, 0, 0, 0))
+    ImageDraw.Draw(big).rounded_rectangle((0, 0, big.width - 1, big.height - 1), r * s, fill=rgba)
+    full = big.resize((2 * r + 1, 2 * r + 1), Image.LANCZOS)
+    cuts = {
+        "nw": (0, 0, r, r), "n": (r, 0, r + 1, r), "ne": (r + 1, 0, 2 * r + 1, r),
+        "w": (0, r, r, r + 1), "c": (r, r, r + 1, r + 1), "e": (r + 1, r, 2 * r + 1, r + 1),
+        "sw": (0, r + 1, r, 2 * r + 1), "s": (r, r + 1, r + 1, 2 * r + 1), "se": (r + 1, r + 1, 2 * r + 1, 2 * r + 1),
+    }
+    for name, c in cuts.items():
+        full.crop(c).save(out / f"{prefix}_{name}.png")
+
+
+def render(out: Path):
+    from PIL import Image, ImageFilter, ImageOps
+
+    state = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "caelestia"
+    c = json.loads((state / "scheme.json").read_text())["colours"]
+    col = {k: v for k, v in c.items() if re.fullmatch(r"[0-9a-fA-F]{6}", str(v))}
+    rgb = lambda k: tuple(int(col[k][i:i + 2], 16) for i in (0, 2, 4))
+    hexc = lambda k: "#" + col[k]
+
+    # latar: wallpaper diburamkan + digelapkan, seperti lock screen Caelestia
+    try:
+        wall = ImageOps.fit(Image.open(state / "wallpaper/current").convert("RGB"), (W, H), Image.LANCZOS)
+        wall = wall.filter(ImageFilter.GaussianBlur(30))
+        wall = Image.blend(wall, Image.new("RGB", (W, H), rgb("surface")), 0.45)
+    except (OSError, ValueError):
+        wall = Image.new("RGB", (W, H), rgb("surface"))
+    wall.save(out / "background.jpg", quality=92)
+
+    box("menu", out, rgb("surfaceContainer") + (225,), 28)
+    box("select", out, rgb("secondaryContainer") + (255,), 14)
+
+    (out / "theme.txt").write_text(f"""# Dibuat otomatis oleh caelestia-grub-theme, jangan diedit manual
+title-text: ""
+desktop-image: "background.jpg"
+desktop-image-scale-method: "crop"
+desktop-color: "{hexc('surface')}"
+
++ label {{
+    top = 30%-24
+    left = 0
+    width = 100%
+    align = "center"
+    text = "Choose an operating system"
+    font = "Rubik Medium Regular 30"
+    color = "{hexc('onSurface')}"
+}}
+
++ boot_menu {{
+    left = 50%-320
+    top = 30%+48
+    width = 640
+    height = 284
+    item_font = "Rubik Regular Regular 20"
+    selected_item_font = "Rubik Medium Regular 20"
+    item_color = "{hexc('onSurfaceVariant')}"
+    selected_item_color = "{hexc('onSecondaryContainer')}"
+    item_height = 36
+    item_padding = 16
+    item_spacing = 28
+    icon_width = 0
+    icon_height = 0
+    item_icon_space = 0
+    menu_pixmap_style = "menu_*.png"
+    selected_item_pixmap_style = "select_*.png"
+    scrollbar = false
+}}
+
++ label {{
+    id = "__timeout__"
+    top = 30%+360
+    left = 0
+    width = 100%
+    align = "center"
+    text = "Starting automatically in %d seconds"
+    font = "Rubik Regular Regular 16"
+    color = "{hexc('onSurfaceVariant')}"
+}}
+
++ label {{
+    top = 100%-64
+    left = 0
+    width = 100%
+    align = "center"
+    text = "Enter to boot   ·   Arrow keys to select   ·   E to edit   ·   C for console"
+    font = "Rubik Regular Regular 16"
+    color = "{hexc('outline')}"
+}}
+""")
+
+
+def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "--render":
+        render(Path(sys.argv[2]))
+        return
+    if os.geteuid() != 0 or not os.environ.get("SUDO_USER"):
+        sys.exit("Jalankan dengan sudo: sudo caelestia-grub-theme")
+    user = os.environ["SUDO_USER"]
+    pw = pwd.getpwnam(user)
+    tmp = Path(tempfile.mkdtemp(prefix="caelestia-grub-"))
+    try:
+        os.chown(tmp, pw.pw_uid, pw.pw_gid)
+        subprocess.run(["sudo", "-H", "-u", user, sys.executable, os.path.abspath(__file__), "--render", str(tmp)], check=True)
+        DEST.mkdir(parents=True, exist_ok=True)
+        for name in OUTPUTS:
+            src = tmp / name
+            if src.is_symlink() or not src.is_file() or src.stat().st_size > MAX_BYTES:
+                sys.exit(f"hasil tidak valid: {name}")
+            shutil.copyfile(src, DEST / name)
+            os.chmod(DEST / name, 0o644)
+        for f in FONTS.glob("*.pf2"):
+            shutil.copyfile(f, DEST / f.name)
+            os.chmod(DEST / f.name, 0o644)
+        print(f"Tema GRUB diperbarui: {DEST}")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    main()

@@ -7,16 +7,16 @@ return {
 
     -- Apps
     terminal                   = "foot",
-    browser                    = "zen-browser",
+    browser                    = "firefox",
     editor                     = "codium",
     fileExplorer               = "thunar",
-    audioSettings              = "pavucontrol",
+    audioSettings              = "pwvucontrol",
 
     -- Touchpad
     touchpadDisableTyping      = true,
     touchpadScrollFactor       = 0.3,
     gestureFingers             = 3,
-    workspaceSwipeFingers      = 3,
+    workspaceSwipeFingers      = 4,
     gestureFingersMore         = 4,
 
     -- Blur
@@ -43,6 +43,7 @@ return {
     -- Window styling
     windowOpacity              = 0.95,
     windowRounding             = 15,
+    windowRoundingPower        = 2,
     windowBorderSize           = 1,
     activeWindowBorderColour   = "rgba(" .. scheme.primary .. "e6)",
     inactiveWindowBorderColour = "rgba(" .. scheme.onSurfaceVariant .. "11)",
@@ -53,6 +54,7 @@ return {
     cursorTheme                = "sweet-cursors",
     cursorSize                 = 24,
     sleepGestureCmd            = "systemctl suspend-then-hibernate",
+    specialWsCloseAny          = true,
 
     ------------------
     ---- KEYBINDS ----
@@ -62,6 +64,7 @@ return {
     kbGoToWs                   = "SUPER",
     kbGoToWsGroup              = "CTRL + SUPER",
     kbMoveWinToWs              = "SUPER + ALT",
+    kbMoveWinToWsSilent        = "SUPER + SHIFT",
     kbMoveWinToWsGroup         = "CTRL + SUPER + ALT",
 
     -- All the following binds can be either an array of binds to bind multiple keys, or a single string.
@@ -110,8 +113,8 @@ return {
     kbTodoWs                   = "SUPER + R",
 
     -- Apps
-    kbTerminal                 = "SUPER + Return",
-    kbBrowser                  = "SUPER + B",
+    kbTerminal                 = "SUPER + T",
+    kbBrowser                  = "SUPER + W",
     kbEditor                   = "SUPER + C",
     kbFileExplorer             = "SUPER + E",
     kbAudioSettings            = "CTRL + ALT + V",

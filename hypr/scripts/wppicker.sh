@@ -10,7 +10,7 @@ cd "$WALLPAPER_DIR" || exit 1
 IFS=$'\n'
 
 # === SYNC ROFI COLORS WITH CAELESTIA ===
-/home/felixdev/.local/bin/sync-caelestia-rofi.py
+"$HOME"/.local/bin/sync-caelestia-rofi.py
 
 # === ICON-PREVIEW SELECTION (recursive, newest first) ===
 SELECTED_WALL=$(find . -type f \
@@ -27,12 +27,10 @@ SELECTED_PATH="$WALLPAPER_DIR/$SELECTED_WALL"
 
 # === SET WALLPAPER & DYNAMIC SCHEME ===
 caelestia wallpaper -f "$SELECTED_PATH"
-/home/felixdev/.local/bin/sync-caelestia-rofi.py
+"$HOME"/.local/bin/sync-caelestia-rofi.py
 
 # === CREATE SYMLINK ===
 mkdir -p "$(dirname "$SYMLINK_PATH")"
 ln -sf "$SELECTED_PATH" "$SYMLINK_PATH"
 
-# === SYNC WITH SDDM ===
-/home/felixdev/.local/bin/update-sddm-wallpaper.sh "$SELECTED_PATH"
 

@@ -13,6 +13,10 @@ local function normalise_keybind(key)
     return key:gsub("%s+", ""):lower()
 end
 
+local function valid_keybind(key)
+    return type(key) == "string" and key:match("%S") ~= nil
+end
+
 local function repeating_unless_mouse(key)
     return not normalise_keybind(key):find("mouse", 1, true) and repeating or nil
 end
@@ -21,10 +25,10 @@ local function flatten_keybinds(keybinds, keys)
     keys = keys or {}
 
     if type(keybinds) == "table" then
-        for _, keybind in ipairs(keybinds) do
+        for _, keybind in pairs(keybinds) do
             flatten_keybinds(keybind, keys)
         end
-    elseif keybinds ~= nil then
+    elseif valid_keybind(keybinds) then
         keys[#keys + 1] = keybinds
     end
 
@@ -39,6 +43,10 @@ local function create_bind(keybinds, action, flags)
     for _, key in ipairs(flatten_keybinds(keybinds)) do
         hl.bind(key, action, get_flags(key))
     end
+end
+
+local function extend_keybind(base, suffix)
+    return valid_keybind(base) and base .. " + " .. suffix or nil
 end
 
 -- Launcher
@@ -62,22 +70,19 @@ create_bind(vars.kbLock, hl.dsp.global("caelestia:lock"))
 create_bind(vars.kbRestoreLock, function()
     hl.dispatch(hl.dsp.exec_cmd("caelestia shell -d"))
     hl.dispatch(hl.dsp.global("caelestia:lock"))
-end)
+end, locked)
 
 -- Kill/restart
-create_bind("CTRL + SUPER + SHIFT + R", hl.dsp.exec_cmd("qs -c caelestia kill"), release)
-create_bind(
-    "CTRL + SUPER + ALT + R",
-    hl.dsp.exec_cmd("qs -c caelestia kill; sleep .1; caelestia shell -d"),
-    release
-)
+create_bind("CTRL + SUPER + SHIFT + R", hl.dsp.exec_cmd("caelestia shell -k"), release)
+create_bind("CTRL + SUPER + ALT + R", hl.dsp.exec_cmd("caelestia shell -r -d"), release)
 
 for i = 1, 10 do
     local key = i % 10 -- 10 maps to key 0
-    create_bind(vars.kbGoToWs .. " + " .. key, fn.wsaction("focus", "", i))
-    create_bind(vars.kbMoveWinToWs .. " + " .. key, fn.wsaction("move", "", i))
-    create_bind(vars.kbGoToWsGroup .. " + " .. key, fn.wsaction("focus", "group", i))
-    create_bind(vars.kbMoveWinToWsGroup .. " + " .. key, fn.wsaction("move", "group", i))
+    create_bind(extend_keybind(vars.kbGoToWs, key), fn.wsaction("focus", "", i))
+    create_bind(extend_keybind(vars.kbMoveWinToWs, key), fn.wsaction("move", "", i))
+    create_bind(extend_keybind(vars.kbGoToWsGroup, key), fn.wsaction("focus", "group", i))
+    create_bind(extend_keybind(vars.kbMoveWinToWsGroup, key), fn.wsaction("move", "group", i))
+    create_bind(extend_keybind(vars.kbMoveWinToWsSilent, key), fn.wsaction("move_silent", "", i))
 end
 
 -- Go to workspace -1/+1
@@ -97,13 +102,13 @@ create_bind(vars.kbMoveWinToWsSpecial, hl.dsp.window.move({ workspace = "special
 create_bind(vars.kbMoveWinFromWsSpecial, hl.dsp.window.move({ workspace = "e+0" }))
 
 -- Window groups
-create_bind(vars.kbWindowCycleNext, hl.dsp.focus({ last = true }), repeating)
+create_bind(vars.kbWindowCycleNext, hl.dsp.window.cycle_next(), repeating)
 create_bind(vars.kbWindowCyclePrev, hl.dsp.window.cycle_next({ next = false }), repeating)
 create_bind(vars.kbWindowGroupCycleNext, hl.dsp.group.next(), repeating)
 create_bind(vars.kbWindowGroupCyclePrev, hl.dsp.group.prev(), repeating)
 create_bind(vars.kbToggleGroup, hl.dsp.group.toggle())
 create_bind(vars.kbUngroup, hl.dsp.window.move({ out_of_group = true }))
-create_bind(vars.kbGroupLockActive, hl.dsp.group.lock_active())
+create_bind(vars.kbGroupLockActive, hl.dsp.group.lock())
 
 -- Window actions
 for _, dir in ipairs({ "left", "right", "up", "down" }) do
@@ -145,20 +150,15 @@ create_bind(vars.kbCloseWindow, hl.dsp.window.close())
 create_bind(vars.kbSpecialWs, fn.toggle("specialws"))
 create_bind(vars.kbSystemMonitorWs, fn.toggle("sysmon"))
 create_bind(vars.kbMusicWs, fn.toggle("music"))
--- create_bind(vars.kbCommunicationWs, fn.toggle("communication"))
+create_bind(vars.kbCommunicationWs, fn.toggle("communication"))
 create_bind(vars.kbTodoWs, fn.toggle("todo"))
 
 -- Apps
 create_bind(vars.kbTerminal, hl.dsp.exec_cmd(vars.terminal))
-create_bind("SUPER + SHIFT + Return", hl.dsp.exec_cmd("[float; size 800 550] " .. vars.terminal))
 create_bind(vars.kbBrowser, hl.dsp.exec_cmd(vars.browser))
 create_bind(vars.kbEditor, hl.dsp.exec_cmd(vars.editor))
 create_bind(vars.kbFileExplorer, hl.dsp.exec_cmd(vars.fileExplorer))
 create_bind(vars.kbAudioSettings, hl.dsp.exec_cmd(vars.audioSettings))
-create_bind("SUPER + W", hl.dsp.exec_cmd("~/.config/hypr/scripts/wppicker.sh"))
-create_bind("SUPER + ALT + T", hl.dsp.exec_cmd("~/.local/bin/toggle-touchpad.sh"), locked)
-create_bind("XF86TouchpadToggle", hl.dsp.exec_cmd("~/.local/bin/toggle-touchpad.sh"), locked)
-create_bind("XF86TouchpadOff", hl.dsp.exec_cmd("~/.local/bin/toggle-touchpad.sh"), locked)
 
 -- Utilities
 create_bind(vars.kbScreenshot, hl.dsp.exec_cmd("caelestia screenshot"), locked)

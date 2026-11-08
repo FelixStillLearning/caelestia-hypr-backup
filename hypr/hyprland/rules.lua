@@ -85,6 +85,7 @@ tagged_rule(float_tag, {
 tagged_rule(float_tag, {
     "File (Operation|Upload)( Progress)?", -- File manager operation progress (upload, move, copy, etc)
     ".* Properties",                       -- File properties
+    'Rename ".*"',                         -- File renaming
 }, "title")
 
 
@@ -97,6 +98,9 @@ tagged_rule(float_60_70_tag, {
 }, "title")
 tagged_rule(float_60_70_tag, {
     { title = "(Save|Export) Image", class = "gimp" }, -- GIMP export/save
+})
+tagged_rule(float_60_70_tag, {
+    { title = "Blender File View", class = "blender" }, -- Blender file dialogs
 })
 tagged_rule(float_60_70_tag, {
     "org.pulseaudio.pavucontrol|com.saivert.pwvucontrol", -- Audio control
@@ -142,7 +146,7 @@ tagged_rule(music_player_tag, {
     "Spotify|Spotify Free" -- Spotify wayland, it has no class for some reason
 }, "initial_title")
 tagged_rule(communication_app_tag, {
-    -- "discord|equibop|vesktop", -- Discord clients
+    "discord|equibop|vesktop", -- Discord clients
     "whatsapp"                 -- Whatsapp
 }, "class")
 tagged_rule(todo_app_tag, {
@@ -160,10 +164,6 @@ tagged_rule(xwl_popup_tag, { { class = "steam", title = "" } })
 
 -- Ueberzugpp
 hl.window_rule({ match = { class = "ueberzugpp_.*" }, float = true, no_initial_focus = true })
-
--- File Chooser (Portal)
-
-hl.window_rule({ match = { class = "xdg-desktop-portal-gtk" }, float = true, size = "(monitor_w*0.6) (monitor_h*0.7)", center = true, pin = true })
 
 -- Autodesk Fusion 360
 hl.window_rule({ match = { class = "fusion360.exe", title = "Fusion360|(Marking Menu)" }, no_blur = true })

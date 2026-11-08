@@ -1,0 +1,16 @@
+{
+    "toggles": {
+        "communication": {
+            "discord": {
+                "match": [{ "class": "equibop" }],
+                "command": ["equibop"]
+            }
+        }
+    },
+    "wallpaper": {
+        "postHook": "sudo -n /usr/share/sddm/themes/caelestia/scripts/sync.sh --posthook >/dev/null 2>&1"
+    },
+    "theme": {
+        "postHook": "sudo -n /usr/share/sddm/themes/caelestia/scripts/sync.sh --posthook >/dev/null 2>&1; spicetify refresh >/dev/null 2>&1; sudo -n /usr/local/bin/caelestia-grub-theme >/dev/null 2>&1"
+    }
+}

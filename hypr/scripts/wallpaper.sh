@@ -55,12 +55,9 @@ new_wallpaper_path="${wallpapers[$next_index]}"
 
 # 1. Change the wallpaper and generate new color scheme using caelestia.
 caelestia wallpaper -f "$new_wallpaper_path"
-/home/felixdev/.local/bin/sync-caelestia-rofi.py
+"$HOME"/.local/bin/sync-caelestia-rofi.py
 
 # 2. Update the symlink to the new wallpaper, maintaining consistency with other scripts.
 #    Make sure the directory for the symlink exists.
 mkdir -p "$(dirname "$SYMLINK_PATH")"
 ln -sf "$new_wallpaper_path" "$SYMLINK_PATH"
-
-# 3. Synchronize the new wallpaper with the SDDM login screen.
-/home/felixdev/.local/bin/update-sddm-wallpaper.sh "$new_wallpaper_path"

@@ -1,0 +1,44 @@
+/* Warna Caelestia untuk Zen Browser.
+   Template: ~/.config/caelestia/templates/zen-userChrome.css
+   Dirender Caelestia ke ~/.local/state/caelestia/theme/ setiap ganti wallpaper,
+   lalu dipakai Zen lewat symlink chrome/userChrome.css (berlaku setelah Zen dibuka ulang).
+   Latar sengaja tidak diubah supaya mod Transparent Zen tetap jalan. */
+
+:root {
+    --zen-primary-color: #{{ primary.hex }} !important;
+    --zen-colors-primary: #{{ secondaryContainer.hex }} !important;
+    --zen-colors-secondary: #{{ surfaceContainerHigh.hex }} !important;
+    --zen-colors-tertiary: #{{ surfaceContainerLow.hex }} !important;
+    --zen-colors-border: #{{ outlineVariant.hex }} !important;
+
+    --toolbar-color: #{{ onSurface.hex }} !important;
+    --lwt-text-color: #{{ onSurface.hex }} !important;
+    --tab-selected-textcolor: #{{ onSurface.hex }} !important;
+    --tab-selected-bgcolor: color-mix(in srgb, #{{ secondaryContainer.hex }} 75%, transparent) !important;
+    --toolbarbutton-icon-fill: #{{ onSurfaceVariant.hex }} !important;
+    --toolbarbutton-icon-fill-attention: #{{ primary.hex }} !important;
+    --focus-outline-color: #{{ primary.hex }} !important;
+
+    --toolbar-field-background-color: color-mix(in srgb, #{{ surfaceContainer.hex }} 80%, transparent) !important;
+    --toolbar-field-focus-background-color: #{{ surfaceContainerHigh.hex }} !important;
+    --toolbar-field-color: #{{ onSurface.hex }} !important;
+    --toolbar-field-focus-color: #{{ onSurface.hex }} !important;
+    --urlbarView-highlight-background: #{{ secondaryContainer.hex }} !important;
+    --urlbarView-highlight-color: #{{ onSecondaryContainer.hex }} !important;
+
+    --arrowpanel-background: #{{ surfaceContainer.hex }} !important;
+    --arrowpanel-color: #{{ onSurface.hex }} !important;
+    --arrowpanel-border-color: #{{ outlineVariant.hex }} !important;
+
+    --button-primary-bgcolor: #{{ primary.hex }} !important;
+    --button-primary-color: #{{ onPrimary.hex }} !important;
+}
+
+.urlbarView-url {
+    color: #{{ primary.hex }} !important;
+}
+
+::selection {
+    background-color: #{{ primary.hex }} !important;
+    color: #{{ onPrimary.hex }} !important;
+}
