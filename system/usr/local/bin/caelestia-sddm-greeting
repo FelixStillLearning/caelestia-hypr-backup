@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Ganti tulisan sambutan besar di tema login caelestia-sddm (Locklike)
+menjadi "Welcome back, sir." + nama user, lebih kecil dan rapi.
+Dijalankan otomatis oleh pacman hook setelah tema di-update.
+Pemakaian: caelestia-sddm-greeting [path Greeting.qml]"""
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1] if len(sys.argv) > 1 else "/usr/share/sddm/themes/caelestia/components/Greeting.qml")
+MARK = "// patched: welcome-back-sir"
+
+NEW = MARK + """
+    Item {
+        id: welcomeTextRect
+
+        width: welcomeText.width + 200
+        height: welcomeText.height + 120
+        anchors.centerIn: parent
+        opacity: 1
+
+        Column {
+            id: welcomeText
+
+            anchors.centerIn: parent
+            spacing: 4
+            opacity: root.firstInput ? 1 : 0
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                renderType: Text.QtRendering
+                text: "Welcome back, sir."
+                font.family: googleSansFlex.name
+                font.pointSize: 22
+                font.letterSpacing: 0.5
+                font.variableAxes: ({ "wght": 400, "wdth": 100, "ROND": 100, "opsz": 24 })
+                color: config.text
+                opacity: 0.8
+            }
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                renderType: Text.QtRendering
+                text: root.username
+                font.family: googleSansFlex.name
+                font.pointSize: 46
+                font.variableAxes: ({ "wght": 650, "wdth": 100, "ROND": 100, "opsz": 96 })
+                color: config.accent || config.primary
+            }
+        }
+
+        PropertyAnimation {
+            target: welcomeTextRect
+            property: "scale"
+            from: 0.9
+            to: 1
+            duration: 500
+            easing.type: Easing.OutCubic
+            running: root.firstInput ? true : false
+        }
+    }
+}
+"""
+
+src = path.read_text()
+if src.endswith(NEW):
+    sys.exit(0)
+if MARK in src:  # versi patch lama: ganti mulai dari penanda
+    start = src.index("    " + MARK)
+else:  # blok asli: dari "Item {  id: welcomeTextRect" sampai akhir file
+    m = re.search(r"\n    Item \{\s*\n\s*id: welcomeTextRect\b", src)
+    if not m:
+        sys.exit(f"{path}: blok welcomeTextRect tidak ditemukan, tema mungkin berubah; patch dilewati")
+    start = m.start() + 1
+path.write_text(src[:start] + "    " + NEW)
+print(f"patched {path}")

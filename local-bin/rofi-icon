@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Buat ikon Material Symbols (font ikon Caelestia) sebagai SVG untuk rofi.
+# Pakai: rofi-icon <nama_ikon> <warna rasi, mis. primary>  -> mencetak path SVG
+name=$1 color=$(grep -m1 -E "^\s*$2:" ~/.config/rofi/colors.rasi | grep -oE '#[0-9a-fA-F]{6}')
+dir=~/.cache/rofi-icons; mkdir -p "$dir"
+out="$dir/$name-${color#\#}.svg"
+[[ -f $out ]] || printf '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"><text x="24" y="42" font-family="Material Symbols Rounded" font-size="42" text-anchor="middle" fill="%s">%s</text></svg>\n' "$color" "$name" > "$out"
+echo "$out"

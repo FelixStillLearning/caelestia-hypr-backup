@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = caelestia-sddm-locklike-git
+
+[Action]
+Description = Applying custom SDDM welcome text...
+When = PostTransaction
+Exec = /usr/local/bin/caelestia-sddm-greeting

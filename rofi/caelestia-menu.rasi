@@ -1,0 +1,68 @@
+/* Menu kecil bergaya launcher Caelestia (dipakai display-mode.sh & battery-mode.sh) */
+@import "colors.rasi"
+
+configuration {
+    font:       "Rubik 12";
+    show-icons: true;
+}
+
+* {
+    background-color: transparent;
+    text-color:       @on-surface;
+}
+
+window {
+    location:         center;
+    anchor:           center;
+    width:            440px;
+    border:           0px;
+    border-radius:    28px;
+    padding:          14px;
+    background-color: @surface;
+}
+
+mainbox {
+    spacing:  10px;
+    children: [ "message", "listview" ];
+}
+
+message {
+    padding: 6px 14px 2px 14px;
+}
+textbox {
+    font:       "Rubik Medium 13";
+    text-color: @on-surface-variant;
+}
+
+listview {
+    lines:     4;
+    spacing:   4px;
+    dynamic:   true;
+    fixed-height: false;
+    scrollbar: false;
+    cycle:     true;
+}
+
+element {
+    spacing:       16px;
+    padding:       12px 16px;
+    border-radius: 16px;
+    cursor:        pointer;
+}
+element selected.normal,
+element selected.active {
+    background-color: @surface-container-highest;
+}
+element-text {
+    text-color:     inherit;
+    vertical-align: 0.5;
+    cursor:         inherit;
+}
+element normal.active,
+element selected.active {
+    text-color: @primary;
+}
+element-icon {
+    size:   26px;
+    cursor: inherit;
+}
