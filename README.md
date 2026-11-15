@@ -59,6 +59,17 @@ Yang dilakukan `install.sh`:
 - VS Code: memasang extension `caelestia-vscode-integration`.
 - Spotify: menerapkan tema lewat Spicetify.
 
+**Plugin Hyprland.** Title bar ala macOS dan kursor dinamis di-build dari sumbernya, karena plugin harus cocok dengan versi Hyprland yang terpasang. Tanpa build, config tetap jalan, hanya tanpa kedua fitur itu.
+
+```bash
+git clone https://github.com/hyprwm/hyprland-plugins ~/.local/src/hyprland-plugins
+git -C ~/.local/src/hyprland-plugins checkout v0.57.0   # tag sesuai versi Hyprland
+make -C ~/.local/src/hyprland-plugins/hyprbars
+git clone https://github.com/VirtCode/hypr-dynamic-cursors ~/.local/src/hypr-dynamic-cursors
+make -C ~/.local/src/hypr-dynamic-cursors all
+hyprctl reload
+```
+
 ## Langkah manual
 
 Langkah berikut menyentuh proses boot, sehingga tidak diotomatiskan. Jalankan satu per satu.
@@ -134,6 +145,8 @@ Template di `caelestia/templates/` dirender Caelestia ke `~/.local/state/caelest
 | Pengaturan Caelestia | `F9` / `SUPER + I` | |
 | Kalkulator | `F12` | GNOME Calculator |
 | Tombol Copilot | `Copilot` | Terminal dengan Claude Code |
+| Title bar ala macOS | Tombol di title bar | Merah menutup, kuning memindah jendela ke special workspace dan kembali lagi, hijau dan klik ganda bar memaksimalkan. Warna ikut wallpaper (plugin hyprbars) |
+| Kursor dinamis | Gerakkan mouse | Kursor miring mengikuti kecepatan dan membesar saat mouse digoyang (plugin hypr-dynamic-cursors) |
 
 Perubahan lain:
 
@@ -149,7 +162,7 @@ Perubahan lain:
 ├── install.sh
 ├── caelestia/
 │   ├── hypr-vars.lua          # override variabel Hyprland (aplikasi default, keybind)
-│   ├── hypr-user.lua          # tambahan: mode layar, F-key, autostart
+│   ├── hypr-user.lua          # tambahan: mode layar, F-key, autostart, plugin
 │   ├── cli.json               # Discord via Equibop dan hook sinkronisasi tema
 │   ├── shell.json             # setelan Caelestia Shell
 │   ├── templates/             # SDDM, Zen, startpage, Obsidian
@@ -209,6 +222,7 @@ Bagian berikut ditujukan untuk IdeaPad Slim 5 AMD. Di perangkat lain bagian ini 
 | Sapaan login kembali ke bawaan | `sudo caelestia-sddm-greeting` (biasanya otomatis lewat hook pacman) |
 | Tab baru Zen tidak memakai startpage | Jalankan `./install.sh --system`, lalu tutup Zen sepenuhnya dan buka ulang |
 | Panel media menampilkan "Unknown artist" | Pilih Spotify lewat tombol pemutar di panel media |
+| Title bar macOS atau kursor dinamis hilang setelah update Hyprland | Build ulang plugin (`make` seperti di bagian Instalasi), lalu `hyprctl reload`. Plugin menolak dimuat bila versinya tidak cocok |
 
 File `hypr/scheme/current.*`, `rofi/colors.rasi`, dan isi `~/.local/state/caelestia/theme/` dibuat ulang setiap ganti wallpaper; jangan diedit langsung. Pemilih wallpaper membaca `~/Pictures/wallpapers`.
 

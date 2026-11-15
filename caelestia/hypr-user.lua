@@ -120,3 +120,43 @@ hl.window_rule({ match = { class = "mpv|vlc|celluloid|imv|org.gnome.Loupe" }, op
 -- Poni Jarvis (Quickshell terpisah, ~/.config/quickshell/jarvis-island)
 hl.layer_rule({ match = { namespace = "jarvis-island" }, blur = true, ignore_alpha = 0.3, animation = "fade" })
 hl.on("hyprland.start", function() hl.exec_cmd("qs -c jarvis-island") end)
+
+-- Title bar ala macOS (hyprbars, build lokal di ~/.local/src/hyprland-plugins/hyprbars).
+-- Warna dibaca ulang dari skema Caelestia tiap config dimuat, jadi ikut wallpaper.
+-- Setelah Hyprland update: jalankan make di folder itu, kalau tidak plugin menolak dimuat.
+hl.plugin.load(os.getenv("HOME") .. "/.local/src/hyprland-plugins/hyprbars/hyprbars.so")
+if hl.plugin.hyprbars then
+    local s = dofile(os.getenv("HOME") .. "/.config/hypr/scheme/current.lua")
+    hl.config({ plugin = { hyprbars = {
+        bar_height = 30,
+        bar_color = "rgba(" .. s.surfaceContainer .. "e0)",
+        ["col.text"] = "rgb(" .. s.onSurfaceVariant .. ")",
+        bar_blur = true,
+        bar_text_font = "SF Pro Text",
+        bar_text_size = 11,
+        bar_text_weight = "medium",
+        bar_text_align = "center",
+        bar_buttons_alignment = "left",
+        bar_padding = 12,
+        bar_button_padding = 8,
+        bar_precedence_over_border = true,
+        icon_on_hover = true,
+        inactive_button_color = "rgb(" .. s.surfaceBright .. ")",
+        on_double_click = [[hyprctl dispatch "hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\" })"]],
+    } } })
+    local hb = hl.plugin.hyprbars
+    hb.add_button({ bg_color = "rgb(ff5f57)", fg_color = "rgb(4d0000)", size = 12, icon = "×", action = [[hyprctl dispatch "hl.dsp.window.close()"]] })
+    hb.add_button({ bg_color = "rgb(febc2e)", fg_color = "rgb(5a3d00)", size = 12, icon = "−", action = os.getenv("HOME") .. "/.local/bin/hyprbars-minimize.sh" }) -- bolak-balik special workspace
+    hb.add_button({ bg_color = "rgb(28c840)", fg_color = "rgb(004d00)", size = 12, icon = "+", action = [[hyprctl dispatch "hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\" })"]] })
+end
+
+-- Kursor dinamis (hypr-dynamic-cursors, build lokal di ~/.local/src/hypr-dynamic-cursors).
+-- mode: "tilt" (miring ikut kecepatan), "rotate" (ikut arah), "stretch" (memanjang), "none".
+-- Setelah Hyprland update: jalankan make all di folder itu, kalau tidak plugin menolak dimuat.
+hl.plugin.load(os.getenv("HOME") .. "/.local/src/hypr-dynamic-cursors/out/dynamic-cursors.so")
+if hl.plugin.dynamic_cursors then
+    hl.config({ plugin = { dynamic_cursors = {
+        mode = "tilt",
+        shake = { enabled = true },
+    } } })
+end
