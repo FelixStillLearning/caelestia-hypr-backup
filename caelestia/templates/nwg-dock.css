@@ -1,0 +1,24 @@
+/* Dock ala macOS (nwg-dock-hyprland). Template Caelestia: dirender ke
+   ~/.local/state/caelestia/theme/nwg-dock.css setiap ganti skema. */
+window { background: transparent; }
+
+#box {
+    background: alpha(#{{ surface.hex }}, 0.38);
+    border: 1px solid alpha(#{{ onSurface.hex }}, 0.16);
+    border-radius: 22px;
+    padding: 6px 8px;
+}
+
+button, image { background: none; border: none; box-shadow: none; }
+
+button {
+    padding: 4px;
+    margin: 0 3px;
+    border-radius: 12px;
+    color: #{{ onSurface.hex }};
+}
+
+button:hover { background-color: alpha(#{{ onSurface.hex }}, 0.12); }
+button:focus { box-shadow: none; }
+
+#active { border-bottom: 2px solid alpha(#{{ primary.hex }}, 0.8); }

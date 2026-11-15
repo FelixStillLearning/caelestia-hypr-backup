@@ -37,7 +37,7 @@ Paket tambahan:
 ```bash
 yay -S --needed rofi jq libnotify gnome-calculator pwvucontrol inotify-tools ffmpeg \
        equibop-bin spotify spicetify-cli zen-browser-bin visual-studio-code-bin \
-       caelestia-sddm-locklike-git plymouth python-pillow ufw apple_cursor whitesur-icon-theme
+       caelestia-sddm-locklike-git plymouth python-pillow ufw apple_cursor whitesur-icon-theme nwg-dock-hyprland
 ```
 
 Nama paket AUR bisa berubah; cek dengan `yay -Ss <nama>` bila ada yang tidak ditemukan.
@@ -148,6 +148,7 @@ Template di `caelestia/templates/` dirender Caelestia ke `~/.local/state/caelest
 | Kalkulator | `F12` | GNOME Calculator |
 | Tombol Copilot | `Copilot` | Terminal dengan Claude Code |
 | Title bar ala macOS | Tombol di title bar | Merah menutup, kuning memindah jendela ke special workspace dan kembali lagi, hijau dan klik ganda bar memaksimalkan. Warna ikut wallpaper (plugin hyprbars) |
+| Dock ala macOS | Kursor ke tepi bawah | Tengah bawah, sembunyi otomatis, kaca buram dengan warna skema. Klik kanan ikon untuk pin. Gaya di `caelestia/templates/nwg-dock.css`, dijalankan `local-bin/caelestia-dock` saat login dan setiap ganti skema |
 | Kursor dinamis | Gerakkan mouse | Kursor miring mengikuti kecepatan dan membesar saat mouse digoyang (plugin hypr-dynamic-cursors) |
 
 Perubahan lain:

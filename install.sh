@@ -41,6 +41,10 @@ done
 mkdir -p "$HOME/.local/share/orca-caelestia-theme/themes" "$HOME/.local/share/orca-caelestia-theme/terminal"
 cp orca-caelestia-theme/orca-plugin.json "$HOME/.local/share/orca-caelestia-theme/"
 
+# Dock ala macOS: gaya dari template Caelestia (dirender ke ~/.local/state saat ganti skema)
+mkdir -p "$HOME/.config/nwg-dock-hyprland"
+ln -sfn "$HOME/.local/state/caelestia/theme/nwg-dock.css" "$HOME/.config/nwg-dock-hyprland/style.css"
+
 # Zen Browser: pakai warna Caelestia lewat userChrome.css
 for p in "$HOME"/.zen/*/prefs.js; do
     [[ -f $p ]] || continue

@@ -148,3 +148,7 @@ if hl.plugin.dynamic_cursors then
         shake = { enabled = true },
     } } })
 end
+
+-- Dock ala macOS (nwg-dock-hyprland lewat ~/.local/bin/caelestia-dock): kaca buram seperti panel Caelestia
+hl.layer_rule({ match = { namespace = "nwg-dock" }, blur = true, ignore_alpha = 0.2 })
+hl.on("hyprland.start", function() hl.exec_cmd("~/.local/bin/caelestia-dock") end)
