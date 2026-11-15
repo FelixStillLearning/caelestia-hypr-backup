@@ -70,6 +70,8 @@ make -C ~/.local/src/hypr-dynamic-cursors all
 hyprctl reload
 ```
 
+Setelah Hyprland di-update, cukup jalankan `rebuild-hypr-plugins` (untuk versi Hyprland baru, checkout dulu tag hyprland-plugins yang sesuai).
+
 ## Langkah manual
 
 Langkah berikut menyentuh proses boot, sehingga tidak diotomatiskan. Jalankan satu per satu.
@@ -151,9 +153,9 @@ Template di `caelestia/templates/` dirender Caelestia ke `~/.local/state/caelest
 Perubahan lain:
 
 - Jam desktop dan visualizer audio di wallpaper (`caelestia/shell.json`).
-- Gaya macOS: kursor `macOS` (apple_cursor, `cursorTheme` di `caelestia/hypr-vars.lua`) yang tetap tegak dengan shake to find, ikon WhiteSur (`iconThemeDark`/`iconThemeLight` di `caelestia/cli.json`, dipakai GTK dan Qt setiap ganti skema), dan font terminal SF Mono.
+- Gaya macOS: kursor `macOS` (apple_cursor, `cursorTheme` di `caelestia/hypr-vars.lua`) yang tetap tegak dengan shake to find, ikon WhiteSur (`iconThemeDark`/`iconThemeLight` di `caelestia/cli.json`, dipakai GTK dan Qt setiap ganti skema), dan SF Mono sebagai font monospace (terminal, GTK, Caelestia, fontconfig). Tombol jendela bawaan Zen disembunyikan lewat `zen-userChrome.css`; Orca tidak diberi title bar hyprbars karena tombolnya sendiri tidak bisa disembunyikan.
 - Spotify menjadi pemutar default di panel media, sehingga aplikasi lain yang mendaftar MPRIS (misalnya Ferdium) tidak mengambil alih.
-- Startpage Zen untuk homepage dan tab baru: jam, kolom pencarian, dan shortcut. Daftar shortcut ada di variabel `LINKS` pada `caelestia/templates/startpage.html`.
+- Startpage Zen untuk homepage dan tab baru: sapaan sesuai jam, jam, kolom pencarian, dan shortcut. Daftar shortcut ada di variabel `LINKS` pada `caelestia/templates/startpage.html`.
 - Share screen: kursor ikut terekam (`cursor:no_hardware_cursors`) dan dialog pemilihan layar tidak muncul dua kali (`hypr/xdph.conf`).
 
 ## Struktur repo
@@ -222,7 +224,7 @@ Bagian berikut ditujukan untuk IdeaPad Slim 5 AMD. Di perangkat lain bagian ini 
 | Tema Spotify hilang setelah update | `spicetify backup apply` |
 | Tab baru Zen tidak memakai startpage | Jalankan `./install.sh --system`, lalu tutup Zen sepenuhnya dan buka ulang |
 | Panel media menampilkan "Unknown artist" | Pilih Spotify lewat tombol pemutar di panel media |
-| Title bar macOS atau kursor dinamis hilang setelah update Hyprland | Build ulang plugin (`make` seperti di bagian Instalasi), lalu `hyprctl reload`. Plugin menolak dimuat bila versinya tidak cocok |
+| Title bar macOS atau kursor dinamis hilang setelah update Hyprland | Jalankan `rebuild-hypr-plugins`. Plugin menolak dimuat bila versinya tidak cocok |
 
 File `hypr/scheme/current.*`, `rofi/colors.rasi`, dan isi `~/.local/state/caelestia/theme/` dibuat ulang setiap ganti wallpaper; jangan diedit langsung. Pemilih wallpaper membaca `~/Pictures/wallpapers`.
 

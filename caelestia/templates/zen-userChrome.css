@@ -42,3 +42,6 @@
     background-color: #{{ primary.hex }} !important;
     color: #{{ onPrimary.hex }} !important;
 }
+
+/* Tombol jendela bawaan disembunyikan: sudah ada tombol ala macOS dari hyprbars */
+.titlebar-buttonbox-container { display: none !important; }

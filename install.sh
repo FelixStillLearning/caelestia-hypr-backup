@@ -21,14 +21,14 @@ for d in hypr caelestia rofi foot; do
     mkdir -p "$HOME/.config/$d"
     cp -a "$d/." "$HOME/.config/$d/"
 done
-# Font seragam: SF Pro (teks) dan JetBrains Mono (monospace)
+# Font seragam: SF Pro (teks) dan SF Mono (monospace)
 mkdir -p "$HOME/.config/fontconfig/conf.d"
 cp fontconfig/50-default-fonts.conf "$HOME/.config/fontconfig/conf.d/"
 fc-cache -f >/dev/null 2>&1 || true
 if command -v gsettings >/dev/null; then
     gsettings set org.gnome.desktop.interface font-name 'SF Pro Text 10'
     gsettings set org.gnome.desktop.interface document-font-name 'SF Pro Text 10'
-    gsettings set org.gnome.desktop.interface monospace-font-name 'JetBrains Mono 10'
+    gsettings set org.gnome.desktop.interface monospace-font-name 'SF Mono 10'
 fi
 
 mkdir -p "$HOME/.local/bin"

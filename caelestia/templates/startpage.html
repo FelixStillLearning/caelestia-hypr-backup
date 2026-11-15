@@ -58,7 +58,7 @@ input:focus { border-color: var(--primary); }
 <body>
 <div id="bg"></div>
 <main>
-    <div class="greet">Welcome back, sir.</div>
+    <div class="greet" id="greet"></div>
     <div class="clock" id="clock">00:00</div>
     <div class="date" id="date"></div>
     <form id="search"><input id="q" placeholder="Search Google or type a URL" autofocus autocomplete="off"></form>
@@ -91,6 +91,8 @@ for (const [name, url, icon] of LINKS) {  // icon opsional: URL gambar ikon
 
 function tick() {
     const d = new Date();
+    const h = d.getHours();
+    document.getElementById("greet").textContent = h < 5 ? "Good night" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
     document.getElementById("clock").textContent = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
     document.getElementById("date").textContent = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 }

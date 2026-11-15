@@ -1,0 +1,9 @@
+#!/bin/sh
+# Build ulang plugin Hyprland lokal (hyprbars, hypr-dynamic-cursors) setelah Hyprland di-update,
+# lalu muat ulang config. Plugin menolak dimuat kalau versinya tidak cocok dengan Hyprland.
+set -e
+src="$HOME/.local/src"
+make -C "$src/hyprland-plugins/hyprbars"
+make -C "$src/hypr-dynamic-cursors" all
+hyprctl reload >/dev/null
+hyprctl plugin list | grep '^Plugin'
