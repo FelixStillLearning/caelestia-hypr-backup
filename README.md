@@ -46,7 +46,7 @@ Nama paket AUR bisa berubah; cek dengan `yay -Ss <nama>` bila ada yang tidak dit
 git clone https://github.com/FelixStillLearning/caelestia-hypr-backup.git
 cd caelestia-hypr-backup
 ./install.sh            # config user
-./install.sh --system   # ditambah file sistem: sudoers, hook pacman, tema GRUB/login, Zen
+./install.sh --system   # ditambah file sistem: sudoers, tema GRUB/login, Zen
 ```
 
 Config lama dibackup ke `~/.config-backup-<tanggal>` sebelum ditimpa. Installer aman dijalankan ulang. Logout lalu login kembali setelah selesai.
@@ -123,7 +123,7 @@ Setiap pergantian wallpaper (`SUPER + W` atau menu Caelestia) memperbarui warna 
 | Target | Mekanisme |
 |---|---|
 | Menu GRUB | `caelestia-grub-theme`: latar blur dari wallpaper, pertanyaan dalam serif, pilihan berupa pill kaca; font GRUB dibuat dari New York, SF Pro, dan JetBrains Mono |
-| Layar login | Tema [caelestia-sddm](https://github.com/ItsABigIgloo/caelestia-sddm) Locklike, sapaan diganti oleh `caelestia-sddm-greeting` |
+| Layar login | Tema [caelestia-sddm](https://github.com/ItsABigIgloo/caelestia-sddm) Locklike, langsung ke form login (halaman sambutan dimatikan lewat `enableWelcomeMessage=false` di `caelestia/templates/sddm-theme.conf`) |
 | Desktop, terminal, GTK/Qt, Discord | Bawaan Caelestia |
 | Popup rofi | `sync-caelestia-rofi.py` |
 | Spotify | Spicetify, berlaku saat Spotify dibuka ulang |
@@ -180,10 +180,9 @@ Perubahan lain:
 ├── local-bin/                 # menu layar, audio, baterai, mic, tombol laptop
 └── system/
     ├── etc/sudoers.d/         # %USER% diganti oleh installer
-    ├── etc/pacman.d/hooks/    # pasang ulang sapaan login setelah update tema
     ├── etc/modprobe.d/        # perbaikan mic AMD
     ├── opt/zen-browser-bin/   # autoconfig untuk tab baru Zen
-    └── usr/local/             # caelestia-grub-theme, caelestia-sddm-greeting
+    └── usr/local/             # caelestia-grub-theme
 ```
 
 ## Cara kerja config
@@ -219,7 +218,6 @@ Bagian berikut ditujukan untuk IdeaPad Slim 5 AMD. Di perangkat lain bagian ini 
 | Gejala | Solusi |
 |---|---|
 | Tema Spotify hilang setelah update | `spicetify backup apply` |
-| Sapaan login kembali ke bawaan | `sudo caelestia-sddm-greeting` (biasanya otomatis lewat hook pacman) |
 | Tab baru Zen tidak memakai startpage | Jalankan `./install.sh --system`, lalu tutup Zen sepenuhnya dan buka ulang |
 | Panel media menampilkan "Unknown artist" | Pilih Spotify lewat tombol pemutar di panel media |
 | Title bar macOS atau kursor dinamis hilang setelah update Hyprland | Build ulang plugin (`make` seperti di bagian Instalasi), lalu `hyprctl reload`. Plugin menolak dimuat bila versinya tidak cocok |

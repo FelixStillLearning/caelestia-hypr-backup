@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Pasang config ini di atas Caelestia dots yang sudah terinstall.
 #   ./install.sh            config user (~/.config, ~/.local/bin)
-#   ./install.sh --system   + file sistem (sudoers, hook pacman, tema GRUB/login); minta password sudo
+#   ./install.sh --system   + file sistem (sudoers, tema GRUB/login); minta password sudo
 # Config lama selalu dibackup dulu ke ~/.config-backup-<tanggal>.
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
@@ -80,7 +80,6 @@ command -v spicetify >/dev/null && { spicetify backup apply >/dev/null 2>&1 || s
 if [[ ${1:-} == --system ]]; then
     echo "==> File sistem (butuh sudo)"
     sudo install -m755 system/usr/local/bin/* /usr/local/bin/
-    sudo install -Dm644 -t /etc/pacman.d/hooks system/etc/pacman.d/hooks/*.hook
     if [[ -d /opt/zen-browser-bin ]]; then  # tab baru Zen = startpage Caelestia
         sudo install -Dm644 system/opt/zen-browser-bin/defaults/pref/autoconfig.js /opt/zen-browser-bin/defaults/pref/autoconfig.js
         sudo install -m644 system/opt/zen-browser-bin/mozilla.cfg /opt/zen-browser-bin/mozilla.cfg
@@ -99,7 +98,6 @@ if [[ ${1:-} == --system ]]; then
         sudo install -m644 system/etc/modprobe.d/blacklist-amd-dmic.conf /etc/modprobe.d/
         echo "   Restart supaya perbaikan mic aktif."
     fi
-    [[ -d /usr/share/sddm/themes/caelestia ]] && sudo /usr/local/bin/caelestia-sddm-greeting || true
     # font tema GRUB baru dimuat setelah grub.cfg dibuat ulang
     [[ -d /boot/grub ]] && sudo /usr/local/bin/caelestia-grub-theme && sudo grub-mkconfig -o /boot/grub/grub.cfg || true
 fi
@@ -107,4 +105,4 @@ fi
 echo
 echo "Selesai. Config lama dibackup di: $backup"
 echo "Logout lalu login lagi (atau restart Hyprland) supaya semua perubahan dimuat."
-[[ ${1:-} == --system ]] || echo "Untuk tema login/GRUB, sudoers, dan hook pacman: jalankan ./install.sh --system"
+[[ ${1:-} == --system ]] || echo "Untuk tema login/GRUB dan sudoers: jalankan ./install.sh --system"
