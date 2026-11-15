@@ -1,0 +1,2 @@
+#!/bin/bash
+exec env MOZ_ENABLE_WAYLAND=0 /opt/zen-browser-bin/zen-bin "$@"

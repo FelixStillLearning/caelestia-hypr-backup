@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "mode": "{{ mode }}",
+  "terminal": {
+    "foreground": "#{{ onSurface.hex }}",
+    "background": "#{{ surface.hex }}",
+    "cursor": "#{{ secondary.hex }}",
+    "black": "#{{ term0.hex }}",
+    "red": "#{{ term1.hex }}",
+    "green": "#{{ term2.hex }}",
+    "yellow": "#{{ term3.hex }}",
+    "blue": "#{{ term4.hex }}",
+    "magenta": "#{{ term5.hex }}",
+    "cyan": "#{{ term6.hex }}",
+    "white": "#{{ term7.hex }}",
+    "brightBlack": "#{{ term8.hex }}",
+    "brightRed": "#{{ term9.hex }}",
+    "brightGreen": "#{{ term10.hex }}",
+    "brightYellow": "#{{ term11.hex }}",
+    "brightBlue": "#{{ term12.hex }}",
+    "brightMagenta": "#{{ term13.hex }}",
+    "brightCyan": "#{{ term14.hex }}",
+    "brightWhite": "#{{ term15.hex }}"
+  }
+}

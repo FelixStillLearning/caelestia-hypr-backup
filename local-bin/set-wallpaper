@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Wrapper script to set wallpaper with swww and update SDDM
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 /path/to/image.jpg [swww options]"
+    exit 1
+fi
+
+WALLPAPER_PATH=$1
+shift
+
+# Set wallpaper using swww with original arguments
+echo "Setting desktop wallpaper..."
+awww img "$WALLPAPER_PATH" "$@"
+
+# Update SDDM wallpaper
+echo "Updating SDDM wallpaper..."
+${HOME}/.local/bin/update-sddm-wallpaper.sh

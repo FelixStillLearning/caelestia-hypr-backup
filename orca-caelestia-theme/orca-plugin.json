@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 2,
+  "id": "caelestia",
+  "name": "Caelestia",
+  "version": "1.0.0",
+  "description": "Warna Caelestia (dari wallpaper). File themes/ dan terminal/ ditimpa oleh postHook tema Caelestia.",
+  "engines": {
+    "orca": ">=1.4.246"
+  },
+  "execution": "data",
+  "contributes": {
+    "themes": [
+      { "id": "caelestia", "title": "Caelestia", "path": "themes/caelestia.json" }
+    ],
+    "terminalThemes": [
+      { "id": "caelestia", "title": "Caelestia", "path": "terminal/caelestia.json" }
+    ]
+  }
+}

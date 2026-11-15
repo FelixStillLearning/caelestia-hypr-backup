@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+REAL_TRAE="${HOME}/.local/share/uv/tools/trae-agent/bin/trae-cli-bin"
+
+args=()
+has_cmd=false
+has_help=false
+
+for arg in "$@"; do
+  if [ "$arg" = "--yolo" ]; then
+    continue
+  fi
+  if [ "$arg" = "--help" ] || [ "$arg" = "-h" ]; then
+    has_help=true
+  fi
+  if [[ "$arg" =~ ^(interactive|run|show-config|tools)$ ]]; then
+    has_cmd=true
+  fi
+  args+=("$arg")
+done
+
+if [ "$has_help" = true ] && [ "$has_cmd" = false ]; then
+  exec "$REAL_TRAE" --help
+elif [ "$has_cmd" = false ]; then
+  exec "$REAL_TRAE" interactive "${args[@]}"
+else
+  exec "$REAL_TRAE" "${args[@]}"
+fi

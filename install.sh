@@ -37,6 +37,10 @@ for f in local-bin/*; do
     install -m755 "$f" "$HOME/.local/bin/"
 done
 
+# Orca: plugin tema Caelestia (berkas temanya disalin postHook cli.json setiap ganti wallpaper)
+mkdir -p "$HOME/.local/share/orca-caelestia-theme/themes" "$HOME/.local/share/orca-caelestia-theme/terminal"
+cp orca-caelestia-theme/orca-plugin.json "$HOME/.local/share/orca-caelestia-theme/"
+
 # Zen Browser: pakai warna Caelestia lewat userChrome.css
 for p in "$HOME"/.zen/*/prefs.js; do
     [[ -f $p ]] || continue
@@ -94,7 +98,6 @@ command -v spicetify >/dev/null && { spicetify backup apply >/dev/null 2>&1 || s
 if [[ ${1:-} == --system ]]; then
     echo "==> File sistem (butuh sudo)"
     sudo install -m755 system/usr/local/bin/* /usr/local/bin/
-    sudo install -Dm644 -t /usr/local/share/caelestia-grub-theme system/usr/local/share/caelestia-grub-theme/*.pf2
     sudo install -Dm644 -t /etc/pacman.d/hooks system/etc/pacman.d/hooks/*.hook
     if [[ -d /opt/zen-browser-bin ]]; then  # tab baru Zen = startpage Caelestia
         sudo install -Dm644 system/opt/zen-browser-bin/defaults/pref/autoconfig.js /opt/zen-browser-bin/defaults/pref/autoconfig.js
@@ -115,7 +118,8 @@ if [[ ${1:-} == --system ]]; then
         echo "   Restart supaya perbaikan mic aktif."
     fi
     [[ -d /usr/share/sddm/themes/caelestia ]] && sudo /usr/local/bin/caelestia-sddm-greeting || true
-    [[ -d /boot/grub ]] && sudo /usr/local/bin/caelestia-grub-theme || true
+    # font tema GRUB baru dimuat setelah grub.cfg dibuat ulang
+    [[ -d /boot/grub ]] && sudo /usr/local/bin/caelestia-grub-theme && sudo grub-mkconfig -o /boot/grub/grub.cfg || true
 fi
 
 echo

@@ -111,7 +111,7 @@ Setiap pergantian wallpaper (`SUPER + W` atau menu Caelestia) memperbarui warna 
 
 | Target | Mekanisme |
 |---|---|
-| Menu GRUB | `caelestia-grub-theme`: latar blur, kartu menu, dan font Rubik dibuat dari wallpaper |
+| Menu GRUB | `caelestia-grub-theme`: latar blur dari wallpaper, pertanyaan Jarvis dalam serif, pilihan berupa pill kaca; font GRUB dibuat dari New York, SF Pro, dan JetBrains Mono |
 | Layar login | Tema [caelestia-sddm](https://github.com/ItsABigIgloo/caelestia-sddm) Locklike, sapaan diganti oleh `caelestia-sddm-greeting` |
 | Desktop, terminal, GTK/Qt, Discord | Bawaan Caelestia |
 | Popup rofi | `sync-caelestia-rofi.py` |
@@ -170,7 +170,7 @@ Perubahan lain:
     ├── etc/pacman.d/hooks/    # pasang ulang sapaan login setelah update tema
     ├── etc/modprobe.d/        # perbaikan mic AMD
     ├── opt/zen-browser-bin/   # autoconfig untuk tab baru Zen
-    └── usr/local/             # caelestia-grub-theme, caelestia-sddm-greeting, font GRUB
+    └── usr/local/             # caelestia-grub-theme, caelestia-sddm-greeting
 ```
 
 ## Cara kerja config

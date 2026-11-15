@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Tema GRUB bergaya Caelestia: latar wallpaper diburamkan, kartu menu membulat,
-font Rubik, pill pilihan warna aksen. Warna dan wallpaper diambil dari Caelestia.
+"""Tema GRUB bergaya Caelestia dan Jarvis: latar wallpaper diburamkan, pertanyaan Jarvis
+dalam serif miring (New York), menu sans (SF Pro) tanpa kartu, pilihan berupa pill kaca.
+Warna dan wallpaper diambil dari Caelestia.
+Font .pf2 dimuat GRUB lewat grub.cfg: setelah nama font berubah, jalankan sudo grub-mkconfig -o /boot/grub/grub.cfg.
 
   sudo caelestia-grub-theme      buat/perbarui /boot/grub/themes/caelestia
   (dipanggil otomatis lewat postHook Caelestia setiap ganti wallpaper)
@@ -18,20 +20,30 @@ import tempfile
 from pathlib import Path
 
 DEST = Path("/boot/grub/themes/caelestia")
-FONTS = Path("/usr/local/share/caelestia-grub-theme")
+APPLE = Path("/usr/share/fonts/apple-fonts")
+FONTS = {  # nama berkas pf2 -> (font sumber, nama keluarga di GRUB, ukuran)
+    "jarvis-serif-40.pf2": ("NewYorkLarge-MediumItalic.otf", "Jarvis Serif", 40),
+    "jarvis-sans-20.pf2": ("SF-Pro-Text-Regular.otf", "Jarvis Sans", 20),
+    "jarvis-sans-medium-20.pf2": ("SF-Pro-Text-Medium.otf", "Jarvis Sans Medium", 20),
+    "jarvis-sans-16.pf2": ("SF-Pro-Text-Regular.otf", "Jarvis Sans", 16),
+    # terminal GRUB (teks "Loading Linux ..."): GRUB memakai font yang terakhir dimuat sebagai cadangan,
+    # dan grub.cfg memuat font tema urut nama berkas, jadi nama ini sengaja paling akhir (t > s)
+    "jarvis-terminal-18.pf2": ("/usr/share/fonts/TTF/JetBrainsMono-Regular.ttf", "Jarvis Mono", 18),
+}
 W, H = 1920, 1200
 SLICES = ("nw", "n", "ne", "w", "c", "e", "sw", "s", "se")
-OUTPUTS = ["theme.txt", "background.jpg"] + [f"{b}_{s}.png" for b in ("menu", "select") for s in SLICES]
+OUTPUTS = ["theme.txt", "background.jpg"] + [f"select_{s}.png" for s in SLICES] + list(FONTS)
 MAX_BYTES = 20 * 1024 * 1024
 
 
-def box(prefix, out, rgba, r):
-    """9-slice kotak membulat (radius r) untuk menu/pill GRUB."""
+def box(prefix, out, rgba, r, rim=None):
+    """9-slice kotak membulat (radius r) untuk pill GRUB, opsional dengan tepi 1 px."""
     from PIL import Image, ImageDraw
 
     s = 4  # supersampling biar tepi halus
     big = Image.new("RGBA", (2 * r * s + s, 2 * r * s + s), (0, 0, 0, 0))
-    ImageDraw.Draw(big).rounded_rectangle((0, 0, big.width - 1, big.height - 1), r * s, fill=rgba)
+    ImageDraw.Draw(big).rounded_rectangle((0, 0, big.width - 1, big.height - 1), r * s, fill=rgba,
+                                          outline=rim, width=s if rim else 0)
     full = big.resize((2 * r + 1, 2 * r + 1), Image.LANCZOS)
     cuts = {
         "nw": (0, 0, r, r), "n": (r, 0, r + 1, r), "ne": (r + 1, 0, 2 * r + 1, r),
@@ -43,7 +55,7 @@ def box(prefix, out, rgba, r):
 
 
 def render(out: Path):
-    from PIL import Image, ImageFilter, ImageOps
+    from PIL import Image, ImageChops, ImageFilter, ImageOps
 
     state = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "caelestia"
     c = json.loads((state / "scheme.json").read_text())["colours"]
@@ -54,69 +66,83 @@ def render(out: Path):
     # latar: wallpaper diburamkan + digelapkan, seperti lock screen Caelestia
     try:
         wall = ImageOps.fit(Image.open(state / "wallpaper/current").convert("RGB"), (W, H), Image.LANCZOS)
-        wall = wall.filter(ImageFilter.GaussianBlur(30))
-        wall = Image.blend(wall, Image.new("RGB", (W, H), rgb("surface")), 0.45)
+        wall = wall.filter(ImageFilter.GaussianBlur(40))
+        # cukup gelap supaya teks putih terbaca juga di wallpaper terang
+        wall = Image.blend(wall, Image.new("RGB", (W, H), rgb("surface")), 0.66)
     except (OSError, ValueError):
         wall = Image.new("RGB", (W, H), rgb("surface"))
-    wall.save(out / "background.jpg", quality=92)
+    # tepi layar lebih gelap, perhatian ke tengah
+    edge = Image.radial_gradient("L").resize((W, H), Image.BICUBIC).point(lambda v: int(v * 0.55))
+    wall = Image.composite(Image.new("RGB", (W, H), rgb("surface")), wall, edge)
+    # butiran halus supaya gradasi blur tidak membentuk garis-garis (banding)
+    grain = Image.merge("RGB", [Image.effect_noise((W, H), 5)] * 3)
+    wall = ImageChops.add(wall, grain, 1, -128)
+    wall.save(out / "background.jpg", quality=95)
 
-    box("menu", out, rgb("surfaceContainer") + (225,), 28)
-    box("select", out, rgb("secondaryContainer") + (255,), 14)
+    # pill kaca; tepi 9-slice (12 px) digambar GRUB di luar kotak item
+    box("select", out, (255, 255, 255, 22), 12, rim=(255, 255, 255, 64))
+
+    # font GRUB dibuat dari font sistem; hanya huruf Latin supaya berkasnya kecil
+    for name, (src, family, size) in FONTS.items():
+        subprocess.run(["grub-mkfont", "-s", str(size), "-n", family, "-r", "0x20-0x7E,0xA0-0x17F,0x2018-0x2026",
+                        "-o", str(out / name), str(APPLE / src)], check=True, stderr=subprocess.DEVNULL)
 
     (out / "theme.txt").write_text(f"""# Dibuat otomatis oleh caelestia-grub-theme, jangan diedit manual
 title-text: ""
 desktop-image: "background.jpg"
 desktop-image-scale-method: "crop"
 desktop-color: "{hexc('surface')}"
+terminal-font: "Jarvis Mono Regular 18"
+message-font: "Jarvis Mono Regular 18"
+message-color: "{hexc('onSurfaceVariant')}"
 
 + label {{
-    top = 30%-24
-    left = 0
-    width = 100%
-    align = "center"
-    text = "Choose an operating system"
-    font = "Rubik Medium Regular 30"
+    top = 30%-20
+    left = 50%-300
+    width = 600
+    align = "left"
+    text = "Which system today, sir?"
+    font = "Jarvis Serif Regular 40"
     color = "{hexc('onSurface')}"
 }}
 
 + boot_menu {{
-    left = 50%-320
-    top = 30%+48
-    width = 640
-    height = 284
-    item_font = "Rubik Regular Regular 20"
-    selected_item_font = "Rubik Medium Regular 20"
+    left = 50%-300
+    top = 30%+64
+    width = 600
+    height = 230
+    item_font = "Jarvis Sans Regular 20"
+    selected_item_font = "Jarvis Sans Medium Regular 20"
     item_color = "{hexc('onSurfaceVariant')}"
-    selected_item_color = "{hexc('onSecondaryContainer')}"
-    item_height = 36
-    item_padding = 16
-    item_spacing = 28
+    selected_item_color = "{hexc('onSurface')}"
+    item_height = 32
+    item_padding = 10
+    item_spacing = 22
     icon_width = 0
     icon_height = 0
     item_icon_space = 0
-    menu_pixmap_style = "menu_*.png"
     selected_item_pixmap_style = "select_*.png"
     scrollbar = false
 }}
 
 + label {{
     id = "__timeout__"
-    top = 30%+360
-    left = 0
-    width = 100%
-    align = "center"
+    top = 30%+316
+    left = 50%-300
+    width = 600
+    align = "left"
     text = "Starting automatically in %d seconds"
-    font = "Rubik Regular Regular 16"
+    font = "Jarvis Sans Regular 16"
     color = "{hexc('onSurfaceVariant')}"
 }}
 
 + label {{
-    top = 100%-64
-    left = 0
-    width = 100%
-    align = "center"
-    text = "Enter to boot   ·   Arrow keys to select   ·   E to edit   ·   C for console"
-    font = "Rubik Regular Regular 16"
+    top = 100%-72
+    left = 50%-300
+    width = 600
+    align = "left"
+    text = "Enter to start, arrow keys to choose, E to edit, C for the command line"
+    font = "Jarvis Sans Regular 16"
     color = "{hexc('outline')}"
 }}
 """)
@@ -141,9 +167,9 @@ def main():
                 sys.exit(f"hasil tidak valid: {name}")
             shutil.copyfile(src, DEST / name)
             os.chmod(DEST / name, 0o644)
-        for f in FONTS.glob("*.pf2"):
-            shutil.copyfile(f, DEST / f.name)
-            os.chmod(DEST / f.name, 0o644)
+        for old in DEST.iterdir():
+            if old.name not in OUTPUTS and old.is_file():
+                old.unlink()
         print(f"Tema GRUB diperbarui: {DEST}")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

@@ -67,11 +67,49 @@ HISTORY_RESET = 10 * 60      # konteks obrolan dilupakan setelah 10 menit tidak 
 WHISPER_MODEL = "small"      # multibahasa, cukup akurat untuk bahasa Indonesia
 # kosakata yang sering diucapkan, supaya Whisper mengeja nama aplikasi dengan benar
 WHISPER_HINT = ("Jarvis, buka Discord, Spotify, Obsidian, Zen, VS Code, terminal. "
-                "Lagu berikutnya, putar lagu, kunci laptop, cari HP. Open Discord, next song.")
-PERSONA = ("You are JARVIS, the calm, witty British AI butler of the user, whom you call 'sir'. "
-           "He may speak Indonesian or English; always answer in English only, never in Indonesian, even if asked. Reply in at most two short "
-           "spoken sentences, no lists, no markdown, no emoji. You are a voice assistant on his laptop with no "
-           "tools or file access; never mention workspaces, terminals, tools, or files.")
+                "Lagu berikutnya, putar lagu, kunci laptop, cari HP. Open Discord, next song. "
+                "Tambah tugas, catat, pindah ke workspace, tutup Discord, mode fokus.")
+# perintah yang bisa diminta lewat Claude; tiap baris lolos ke command() apa adanya (diuji di check_commands.py)
+ACTIONS = """\
+open <discord | spotify | browser | vs code | obsidian | terminal | files | calculator>
+open <youtube | gmail | github | whatsapp | scholar | drive | google | claude | chatgpt | instagram>
+play <song title and artist>
+play | pause | next track | previous track | volume up | volume down
+screenshot
+do not disturb | do not disturb off
+new wallpaper
+lock
+timer <N> minutes
+focus mode <N> minutes | stop focus mode
+workspace <N>
+close <app name> | close this window
+add task <task text> [today | tomorrow | monday ... sunday | next week]
+note <text to write in today's note>
+find my phone
+what time is it
+briefing
+shut down | restart"""
+
+PERSONA = f"""You are JARVIS, the calm, dry-witted British butler AI living on the user's Arch Linux laptop. \
+You address the user as "sir".
+
+How you speak:
+- English only, even when the user speaks Indonesian. Never answer in Indonesian.
+- At most two short sentences meant to be heard, not read: no lists, markdown, emoji, or links.
+- The user's words come from speech recognition of mixed Indonesian and English and are often slightly \
+misheard (for example "diga" for "tiga", meaning three; "di skor" for Discord; "skrinsut" for screenshot). \
+Quietly understand what was meant. Never comment on spelling, mishearing, or transcription.
+- You simply know the current time and what was said earlier. Never mention context, prompts, \
+instructions, transcripts, messages, "the conversation above", being an AI model, Claude, or Anthropic.
+- If you truly cannot tell what the user wants, ask one short question.
+
+What you can do on the laptop:
+When the user asks you to do something on the laptop, never say you cannot and never describe the steps. \
+Instead reply with exactly one line, "ACTION: <command>", and nothing else, choosing one of these commands. \
+Fill in the <...> parts, write numbers as digits, and keep task and note text in the user's own words:
+{ACTIONS}
+Only when the request is not covered by any command, reply with one short sentence that names what was asked \
+and says it is not within your reach yet, for example: 'Netflix is not within my reach yet, sir.'"""
 
 
 def config():
@@ -616,6 +654,80 @@ def timer_done(label):
     say(f"Sir, your {label} timer is up.")
 
 
+VAULT = HOME / "Notes"   # vault Obsidian; catatan harian di akar vault, nama YYYY-MM-DD.md
+DUE = [  # ucapan tanggal -> due_string Todoist (Todoist tidak paham bahasa Indonesia)
+    (r"hari ini|today", "today"), (r"besok|tomorrow", "tomorrow"), (r"lusa", "in 2 days"),
+    (r"minggu depan|next week", "next week"), (r"(hari )?senin|monday", "monday"),
+    (r"(hari )?selasa|tuesday", "tuesday"), (r"(hari )?rabu|wednesday", "wednesday"),
+    (r"(hari )?kamis|thursday", "thursday"), (r"(hari )?jum'?at|friday", "friday"),
+    (r"(hari )?sabtu|saturday", "saturday"), (r"(hari )?minggu|sunday", "sunday"),
+]
+focus_timer = None
+
+
+def todoist_add(text):
+    """'revisi bab dua besok' -> tugas 'Revisi bab dua' jatuh tempo besok. Mengembalikan balasan."""
+    token = config().get("todoist_token")
+    if not token:
+        return "I have no Todoist token, sir."
+    due = None
+    for pat, en in DUE:
+        m = re.search(rf"\b(?:(?:untuk|buat|on|for|by) )?({pat})\b", text)
+        if m:
+            due, text = en, (text[:m.start()] + text[m.end():])
+            break
+    content = re.sub(r"\s+", " ", text).strip(" ,.")
+    if not content:
+        return "What is the task, sir?"
+    content = content[0].upper() + content[1:]
+    body = {"content": content} | ({"due_string": due, "due_lang": "en"} if due else {})
+    req = urllib.request.Request("https://api.todoist.com/api/v1/tasks", data=json.dumps(body).encode(),
+                                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=8):
+            pass
+    except Exception:
+        return "I could not reach Todoist, sir."
+    return f"Added {content}" + (f", due {due}" if due else "") + ", sir."
+
+
+def note(text):
+    """Tambah satu baris berjam ke catatan harian Obsidian."""
+    daily = VAULT / f"{date.today():%Y-%m-%d}.md"
+    old = daily.read_text() if daily.exists() else ""
+    sep = "" if not old or old.endswith("\n") else "\n"
+    with daily.open("a") as f:
+        f.write(f"{sep}- {time.strftime('%H:%M')} {text[0].upper() + text[1:]}\n")
+
+
+def hypr(dispatcher):
+    return run("hyprctl", "dispatch", dispatcher)
+
+
+def close_app(name):
+    """Tutup jendela yang class/judulnya cocok dengan nama yang diucapkan. True kalau ada."""
+    try:
+        clients = json.loads(run("hyprctl", "-j", "clients") or "[]")
+    except ValueError:
+        return False
+    pats = [pat for pat in APPS if re.search(rf"\b({pat})\b", name)]
+    words = [w for w in name.split() if len(w) >= 4]
+    for c in clients:
+        cls, title = c.get("class", "").lower(), c.get("title", "").lower()
+        if any(re.search(pat, cls) for pat in pats) or any(w in cls or w in title for w in words):
+            hypr(f'hl.dsp.window.close({{ window = "address:{c["address"]}" }})')
+            return True
+    return False
+
+
+def focus_end():
+    global focus_timer
+    focus_timer = None
+    shell("notifs", "disableDnd")
+    run("notify-send", "-a", "Jarvis", "-u", "critical", "Sesi fokus selesai", "Waktunya istirahat sebentar.")
+    say("Focus session complete, sir. Time for a short break.")
+
+
 def spotify_uri(query):
     """Lagu teratas dari Spotify Web API (butuh spotify_client_id/secret di config), atau None."""
     cfg = config()
@@ -653,7 +765,7 @@ def spotify_open(uri):
 def command(text):
     """Perintah tetap dua bahasa. Mengembalikan kalimat balasan, atau None kalau bukan perintah.
     Balasan yang diakhiri "?" membuat Jarvis menunggu jawabanmu."""
-    global pending
+    global pending, focus_timer
     t = text.lower().strip(" .!?")
     t = re.sub(r"^(hey|hai|halo)?\s*jarvis[,.]?\s*", "", t)
 
@@ -669,6 +781,49 @@ def command(text):
     if re.search(r"\b(never ?mind|cancel|batal|(nggak|gak|ga|tidak) jadi)\b", t):
         return "Very well, sir."
 
+    # tugas Todoist: "tambah tugas revisi bab dua besok"
+    m = re.search(r"\b(?:(?:tambah(?:kan)?|tambahin|bikin|buat(?:kan)?|add)\s+(?:a\s+)?(?:tugas|task|to ?do))\b[:,]?\s*(.*)", t)
+    if m:
+        return todoist_add(m.group(1))
+    # catatan harian Obsidian: "catat ide pakai attention per bagian tubuh"
+    m = re.match(r"(?:catat|catet|tulis catatan|take a note|note that|note)\b[:,]?\s*(.*)", t)
+    if m:
+        if not m.group(1):
+            return "What shall I note, sir?"
+        note(m.group(1))
+        return "Noted, sir."
+    # mode fokus: jangan diganggu + musik + timer (bawaan 25 menit)
+    if re.search(r"\b(mode fokus|focus mode|pomodoro)\b", t) or re.match(r"(?:mulai |start )?(?:fokus|focus)\b", t):
+        if re.search(r"\b(stop|selesai|matikan|matiin|berhenti|akhiri|end|cancel)\b", t):
+            if focus_timer:
+                focus_timer.cancel()
+                focus_timer = None
+            shell("notifs", "disableDnd")
+            return "Focus mode is off, sir."
+        sec = parse_duration(t) or 25 * 60
+        if focus_timer:
+            focus_timer.cancel()
+        focus_timer = threading.Timer(sec, focus_end)
+        focus_timer.daemon = True
+        focus_timer.start()
+        shell("notifs", "enableDnd")
+        shell("mpris", "play")
+        return f"Focus mode for {spoken_duration(sec)}, sir. I shall hold your notifications."
+    # workspace: "pindah ke workspace 3", "workspace tiga"
+    words = "|".join(sorted(map(re.escape, NUMBERS), key=len, reverse=True))
+    m = re.search(rf"\b(?:workspace|work space|ruang kerja|desktop)\s+(?:nomor\s+|number\s+)?(\d+|{words})\b", t)
+    if m:
+        n = int(m.group(1)) if m.group(1).isdigit() else NUMBERS[m.group(1)]
+        hypr(f'hl.dsp.focus({{ workspace = "{n}" }})')
+        return f"Workspace {n}, sir."
+    # tutup aplikasi: "tutup Discord", "close this window"
+    m = re.match(r"(?:tolong |please )?(?:tutup|close|quit|keluar dari)\b\s+(?:aplikasi\s+|app\s+|the\s+)?(.+)", t)
+    if m:
+        if re.fullmatch(r"(jendela|window|this window|jendela ini|ini|this)", m.group(1)):
+            hypr("hl.dsp.window.close()")
+            return "Closed, sir."
+        return "Closed, sir." if close_app(m.group(1)) else f"I see no {m.group(1)} open, sir."
+
     # matikan / restart, selalu dengan konfirmasi
     if re.search(r"\b(shut ?down|power off|matikan (laptop|komputer|pc)|matiin (laptop|komputer|pc))\b", t):
         pending = ("Shutting down, sir.", ("systemctl", "poweroff"))
@@ -680,6 +835,9 @@ def command(text):
     # timer
     if re.search(r"\b(timer|ingatkan|ingetin|remind me|alarm|hitung mundur)\b", t):
         sec = parse_duration(t)
+        if not sec and any(re.search(rf"\b({pat})\b", t) for pat, _ in DUE):  # "ingetin aku beli kopi besok"
+            what = re.sub(r"^.*?\b(ingatkan|ingetin|remind me)\b\s*(aku|saya|me)?\s*(untuk|buat|to)?\s*", "", t)
+            return todoist_add(what)
         if not sec:
             return "For how long, sir?"
         label = spoken_duration(sec)
@@ -716,7 +874,7 @@ def command(text):
                 launch(["zen-browser", url])
                 return "Opening it now, sir."
 
-    if re.search(r"\b(screenshot|screen ?shot|tangkap layar|ss layar)\b", t):
+    if re.search(r"\b(screenshot|screen ?sh[oa]+t|skrin ?s[hy]?[uo]+t|tangkap(an)? layar|ss layar|foto layar|potret layar)\b", t):
         def shot():
             island("idle")
             time.sleep(0.8)  # tunggu poni tersembunyi
@@ -793,9 +951,15 @@ def claude_reply(text, history):
     now = datetime.now().strftime("%A %d %B %Y, %H:%M")
     # instruksi bahasa di akhir prompt: kalau di awal, Claude cenderung mengikuti bahasa pertanyaan
     prompt = (f"Current time: {now}.\n{convo}User: {text}\n\n"
-              "Reply as JARVIS in English only, even though the user may have spoken Indonesian. "
-              "At most two short spoken sentences.\nJARVIS:")
+              "Reply as JARVIS: either one ACTION line, or at most two short spoken sentences in English only, "
+              "even though the user may have spoken Indonesian.\nJARVIS:")
     out = ask_claude(prompt)
+    m = re.search(r"ACTION:\s*`?([^`\n]+)", out)
+    if m:  # Claude mengenali permintaan sebagai perintah yang tadi tidak tertangkap pola
+        action = m.group(1).strip().lower()
+        reply = command(action)
+        log(f"action {action!r} -> {reply!r}")
+        return "I am afraid that is not within my reach yet, sir." if reply is None else reply
     if out and indonesian(out):  # masih terlanjur bahasa Indonesia: terjemahkan
         out = ask_claude(f"Translate into natural spoken English, keep the butler tone and 'sir', "
                          f"output only the translation:\n{out}") or out

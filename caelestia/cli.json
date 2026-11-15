@@ -11,6 +11,6 @@
         "postHook": "sudo -n /usr/share/sddm/themes/caelestia/scripts/sync.sh --posthook >/dev/null 2>&1"
     },
     "theme": {
-        "postHook": "sudo -n /usr/share/sddm/themes/caelestia/scripts/sync.sh --posthook >/dev/null 2>&1; spicetify refresh >/dev/null 2>&1; sudo -n /usr/local/bin/caelestia-grub-theme >/dev/null 2>&1"
+        "postHook": "sudo -n /usr/share/sddm/themes/caelestia/scripts/sync.sh --posthook >/dev/null 2>&1; spicetify refresh >/dev/null 2>&1; sudo -n /usr/local/bin/caelestia-grub-theme >/dev/null 2>&1; cp ~/.local/state/caelestia/theme/orca-theme.json ~/.local/share/orca-caelestia-theme/themes/caelestia.json && cp ~/.local/state/caelestia/theme/orca-terminal.json ~/.local/share/orca-caelestia-theme/terminal/caelestia.json && ~/.config/orca/linux-orca-cli-shim/orca plugin update local.caelestia >/dev/null 2>&1"
     }
 }
