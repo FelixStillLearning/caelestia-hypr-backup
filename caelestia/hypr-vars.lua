@@ -6,4 +6,6 @@ return {
     kbBrowser             = "SUPER + B",
     kbWindowCycleNext     = {}, -- diganti di hypr-user.lua
     kbPinWindow           = "SUPER + SHIFT + P", -- SUPER+P dipakai menu Display Mode (F7)
+    cursorTheme           = "macOS", -- apple_cursor (AUR)
+    cursorSize            = 24,
 }

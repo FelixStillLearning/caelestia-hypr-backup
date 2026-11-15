@@ -142,7 +142,7 @@ end
 hl.plugin.load(os.getenv("HOME") .. "/.local/src/hypr-dynamic-cursors/out/dynamic-cursors.so")
 if hl.plugin.dynamic_cursors then
     hl.config({ plugin = { dynamic_cursors = {
-        mode = "tilt",
+        mode = "none", -- kursor tegak seperti macOS, tinggal shake to find
         shake = { enabled = true },
     } } })
 end

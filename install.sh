@@ -16,7 +16,7 @@ save() {  # simpan salinan file/folder lama sebelum ditimpa
 }
 
 echo "==> Config user"
-for d in hypr caelestia rofi; do
+for d in hypr caelestia rofi foot; do
     save "$HOME/.config/$d"
     mkdir -p "$HOME/.config/$d"
     cp -a "$d/." "$HOME/.config/$d/"
