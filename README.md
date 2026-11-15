@@ -148,7 +148,7 @@ Template di `caelestia/templates/` dirender Caelestia ke `~/.local/state/caelest
 | Kalkulator | `F12` | GNOME Calculator |
 | Tombol Copilot | `Copilot` | Terminal dengan Claude Code |
 | Title bar ala macOS | Tombol di title bar | Merah menutup, kuning memindah jendela ke special workspace dan kembali lagi, hijau dan klik ganda bar memaksimalkan. Warna ikut wallpaper (plugin hyprbars) |
-| Dock ala macOS | Kursor ke tepi bawah | Tengah bawah, sembunyi otomatis, kaca buram dengan warna skema. Klik kanan ikon untuk pin. Gaya di `caelestia/templates/nwg-dock.css`, dijalankan `local-bin/caelestia-dock` saat login dan setiap ganti skema |
+| Dock ala macOS | Kursor ke tepi bawah | Tengah bawah, sembunyi otomatis, menempel di bingkai bawah dengan warna dan blur seperti panel Caelestia, naik dari bawah. Klik kanan ikon untuk pin. Gaya di `caelestia/templates/nwg-dock.css`, dijalankan `local-bin/caelestia-dock` saat login dan setiap ganti skema |
 | Kursor dinamis | Gerakkan mouse | Kursor miring mengikuti kecepatan dan membesar saat mouse digoyang (plugin hypr-dynamic-cursors) |
 
 Perubahan lain:

@@ -4,4 +4,4 @@
 # tidak membaca ulang CSS-nya sendiri.
 pkill -x nwg-dock-hyprla 2>/dev/null  # nama proses dipotong 15 karakter
 sleep 0.3
-setsid -f nwg-dock-hyprland -d -hd 0 -nolauncher -i 44 -mb 8 >/dev/null 2>&1
+setsid -f nwg-dock-hyprland -d -hd 0 -nolauncher -i 44 -mb 0 >/dev/null 2>&1

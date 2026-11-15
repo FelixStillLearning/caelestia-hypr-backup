@@ -150,7 +150,10 @@ if hl.plugin.dynamic_cursors then
 end
 
 -- Dock ala macOS (nwg-dock-hyprland lewat ~/.local/bin/caelestia-dock): kaca buram seperti panel Caelestia
-hl.layer_rule({ match = { namespace = "nwg-dock" }, blur = true, ignore_alpha = 0.2 })
+hl.curve("dockSlide", { type = "bezier", points = { { 0.2, 0.9 }, { 0.3, 1 } } })
+-- Layer non-Caelestia (dock, menu rofi) muncul lebih halus; layer Caelestia punya aturan animasi sendiri
+hl.animation({ leaf = "layersIn", enabled = true, speed = 4, bezier = "dockSlide", style = "slide" })
+hl.layer_rule({ match = { namespace = "nwg-dock" }, blur = true, ignore_alpha = 0.2, animation = "slide bottom" })
 hl.on("hyprland.start", function() hl.exec_cmd("~/.local/bin/caelestia-dock") end)
 -- Kursor tidak dipindah otomatis saat fokus berganti (misalnya klik ikon dock), seperti macOS
 hl.config({ cursor = { no_warps = true } })
