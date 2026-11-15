@@ -16,4 +16,4 @@ awww img "$WALLPAPER_PATH" "$@"
 
 # Update SDDM wallpaper
 echo "Updating SDDM wallpaper..."
-${HOME}/.local/bin/update-sddm-wallpaper.sh
+"${HOME}/.local/bin/update-sddm-wallpaper.sh"
