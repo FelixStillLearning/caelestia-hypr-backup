@@ -1,10 +1,10 @@
 /* Menu kecil bergaya launcher Caelestia (dipakai display-mode.sh & battery-mode.sh) */
-@import "colors.rasi"
-
 configuration {
     font:       "SF Pro Text 12";
     show-icons: true;
 }
+
+@import "colors.rasi"
 
 * {
     background-color: transparent;
@@ -15,10 +15,11 @@ window {
     location:         center;
     anchor:           center;
     width:            440px;
-    border:           0px;
-    border-radius:    28px;
-    padding:          14px;
-    background-color: @surface;
+    border:           1px solid;
+    border-color:     rgba(255, 255, 255, 16%);
+    border-radius:    32px;
+    padding:          16px;
+    background-color: @glass;
 }
 
 mainbox {
@@ -35,23 +36,27 @@ textbox {
 }
 
 listview {
-    lines:     4;
-    spacing:   4px;
-    dynamic:   true;
+    lines:        7;
+    spacing:      6px;
+    dynamic:      true;
     fixed-height: false;
-    scrollbar: false;
-    cycle:     true;
+    scrollbar:    false;
+    cycle:        true;
 }
 
 element {
-    spacing:       16px;
-    padding:       12px 16px;
-    border-radius: 16px;
-    cursor:        pointer;
+    spacing:          16px;
+    padding:          12px 16px;
+    border-radius:    18px;
+    cursor:           pointer;
+    background-color: transparent;
+    border:           1px solid;
+    border-color:     transparent;
 }
 element selected.normal,
 element selected.active {
-    background-color: @surface-container-highest;
+    background-color: @glass-hi;
+    border-color:     rgba(255, 255, 255, 12%);
 }
 element-text {
     text-color:     inherit;
@@ -63,6 +68,6 @@ element selected.active {
     text-color: @primary;
 }
 element-icon {
-    size:   26px;
+    size:   28px;
     cursor: inherit;
 }

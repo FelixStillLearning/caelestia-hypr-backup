@@ -47,8 +47,7 @@ pick_category() {
             [[ ${names[$k]} == "@all" ]] && n=${#ALL[@]} || n=${COUNT[$key]}
             printf '%s\n%s\0icon\x1f%s|' "${labels[$k]}" "<span size='small' alpha='65%'>$n wallpapers</span>" "${icons[$k]}"
         done | rofi -dmenu -i -eh 2 -sep '|' -markup-rows -show-icons -format i \
-                -mesg "Wallpaper" -theme "$HOME/.config/rofi/caelestia-menu.rasi" \
-                -theme-str 'listview { lines: 8; scrollbar: false; }') || return 1
+                -mesg "Wallpaper" -theme "$HOME/.config/rofi/caelestia-menu.rasi") || return 1
     echo "${names[$i]}"
 }
 
@@ -60,14 +59,27 @@ files_in() {  # path relatif untuk satu kategori, terbaru dulu
     esac | tr '\n' '\0' | xargs -0 stat -c '%Y|%n' | sort -t'|' -k1,1nr | cut -d'|' -f2-
 }
 
+# === THUMBNAIL SQUIRCLE MACOS (cache; GIF diambil frame pertama) ===
+THUMBS="$HOME/.cache/rofi-wall-thumbs"; mkdir -p "$THUMBS"
+thumb_of() { printf '%s/%s.png' "$THUMBS" "$(printf '%s' "$1$(stat -c %Y "$WALLPAPER_DIR/$1")" | md5sum | cut -c1-16)"; }
+make_thumb() {  # $1 = path relatif
+    local out; out=$(thumb_of "$1"); [[ -s $out ]] && return
+    ffmpeg -v error -y -i "$WALLPAPER_DIR/$1" -frames:v 1 -vf "scale=480:480:force_original_aspect_ratio=increase,crop=480:480,format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lte(hypot(max(0,abs(X-W/2)-(W/2-44)),max(0,abs(Y-H/2)-(H/2-44))),44),255,0)'" "$out" || rm -f "$out"
+}
+export -f make_thumb thumb_of; export WALLPAPER_DIR THUMBS
+
 # === PILIH KATEGORI, LALU GAMBAR (Esc di grid = kembali ke kategori) ===
 while true; do
     CATEGORY=$(pick_category) || exit 1
-    SELECTED_WALL=$(files_in "$CATEGORY" | while read -r relpath; do
-            echo -en "${relpath}\0icon\x1f${WALLPAPER_DIR}/${relpath}\n"
-        done | rofi -dmenu -theme "$HOME/.config/rofi/wallpaper-picker.rasi")
-    [ -n "$SELECTED_WALL" ] && break
+    mapfile -t FILES < <(files_in "$CATEGORY")
+    printf '%s\0' "${FILES[@]}" | xargs -0 -P8 -I{} bash -c 'make_thumb "$1"' _ {}
+    IDX=$(for relpath in "${FILES[@]}"; do
+            name=$(basename "$relpath"); name=${name%.*}
+            printf '%s\0icon\x1f%s\n' "$name" "$(thumb_of "$relpath")"
+        done | rofi -dmenu -i -format i -theme "$HOME/.config/rofi/wallpaper-picker.rasi")
+    [ -n "$IDX" ] && break
 done
+SELECTED_WALL=${FILES[$IDX]}
 SELECTED_PATH="$WALLPAPER_DIR/$SELECTED_WALL"
 
 # === SET WALLPAPER & DYNAMIC SCHEME ===

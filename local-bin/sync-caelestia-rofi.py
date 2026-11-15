@@ -18,6 +18,11 @@ def sync_theme():
         clean_k = k.replace("_", "-")
         clean_k = re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", clean_k).lower()
         lines.append(f"    {clean_k}: #{v};")
+    # Kaca: warna surface dengan alpha (untuk blur Hyprland pada layer rofi)
+    for name, key, a in (("glass", "surface", "8c"), ("glass-card", "surface-container", "70"), ("glass-hi", "surface-container-highest", "b0")):
+        base = next((v for k, v in matches.items() if re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", k.replace("_", "-")).lower() == key), None)
+        if base:
+            lines.append(f"    {name}: #{base}{a};")
     lines.append("}")
 
     rofi_path.parent.mkdir(parents=True, exist_ok=True)
