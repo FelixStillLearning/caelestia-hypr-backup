@@ -220,6 +220,3 @@ hl.layer_rule({ match = { namespace = "launcher" }, animation = "popin 80%", blu
 -- Shell
 hl.layer_rule({ match = { namespace = "caelestia-(border-exclusion|area-picker)" }, no_anim = true })
 hl.layer_rule({ match = { namespace = "caelestia-(drawers|background)" }, animation = "fade" })
-
--- Notch Jarvis: kaca cair, latar di belakang notch diburamkan (hanya bagian yang tidak transparan)
-hl.layer_rule({ match = { namespace = "jarvis-island" }, blur = true, ignore_alpha = 0.02, no_anim = true })
