@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tema GRUB bergaya Caelestia dan Jarvis: latar wallpaper diburamkan, pertanyaan Jarvis
+"""Tema GRUB bergaya Caelestia: latar wallpaper diburamkan, pertanyaan
 dalam serif miring (New York), menu sans (SF Pro) tanpa kartu, pilihan berupa pill kaca.
 Warna dan wallpaper diambil dari Caelestia.
 Font .pf2 dimuat GRUB lewat grub.cfg: setelah nama font berubah, jalankan sudo grub-mkconfig -o /boot/grub/grub.cfg.
@@ -22,13 +22,13 @@ from pathlib import Path
 DEST = Path("/boot/grub/themes/caelestia")
 APPLE = Path("/usr/share/fonts/apple-fonts")
 FONTS = {  # nama berkas pf2 -> (font sumber, nama keluarga di GRUB, ukuran)
-    "jarvis-serif-40.pf2": ("NewYorkLarge-MediumItalic.otf", "Jarvis Serif", 40),
-    "jarvis-sans-20.pf2": ("SF-Pro-Text-Regular.otf", "Jarvis Sans", 20),
-    "jarvis-sans-medium-20.pf2": ("SF-Pro-Text-Medium.otf", "Jarvis Sans Medium", 20),
-    "jarvis-sans-16.pf2": ("SF-Pro-Text-Regular.otf", "Jarvis Sans", 16),
+    "caelestia-serif-40.pf2": ("NewYorkLarge-MediumItalic.otf", "Caelestia Serif", 40),
+    "caelestia-sans-20.pf2": ("SF-Pro-Text-Regular.otf", "Caelestia Sans", 20),
+    "caelestia-sans-medium-20.pf2": ("SF-Pro-Text-Medium.otf", "Caelestia Sans Medium", 20),
+    "caelestia-sans-16.pf2": ("SF-Pro-Text-Regular.otf", "Caelestia Sans", 16),
     # terminal GRUB (teks "Loading Linux ..."): GRUB memakai font yang terakhir dimuat sebagai cadangan,
     # dan grub.cfg memuat font tema urut nama berkas, jadi nama ini sengaja paling akhir (t > s)
-    "jarvis-terminal-18.pf2": ("/usr/share/fonts/TTF/JetBrainsMono-Regular.ttf", "Jarvis Mono", 18),
+    "caelestia-terminal-18.pf2": ("/usr/share/fonts/TTF/JetBrainsMono-Regular.ttf", "Caelestia Mono", 18),
 }
 W, H = 1920, 1200
 SLICES = ("nw", "n", "ne", "w", "c", "e", "sw", "s", "se")
@@ -92,8 +92,8 @@ title-text: ""
 desktop-image: "background.jpg"
 desktop-image-scale-method: "crop"
 desktop-color: "{hexc('surface')}"
-terminal-font: "Jarvis Mono Regular 18"
-message-font: "Jarvis Mono Regular 18"
+terminal-font: "Caelestia Mono Regular 18"
+message-font: "Caelestia Mono Regular 18"
 message-color: "{hexc('onSurfaceVariant')}"
 
 + label {{
@@ -102,7 +102,7 @@ message-color: "{hexc('onSurfaceVariant')}"
     width = 600
     align = "left"
     text = "Which system today, sir?"
-    font = "Jarvis Serif Regular 40"
+    font = "Caelestia Serif Regular 40"
     color = "{hexc('onSurface')}"
 }}
 
@@ -111,8 +111,8 @@ message-color: "{hexc('onSurfaceVariant')}"
     top = 30%+64
     width = 600
     height = 230
-    item_font = "Jarvis Sans Regular 20"
-    selected_item_font = "Jarvis Sans Medium Regular 20"
+    item_font = "Caelestia Sans Regular 20"
+    selected_item_font = "Caelestia Sans Medium Regular 20"
     item_color = "{hexc('onSurfaceVariant')}"
     selected_item_color = "{hexc('onSurface')}"
     item_height = 32
@@ -132,7 +132,7 @@ message-color: "{hexc('onSurfaceVariant')}"
     width = 600
     align = "left"
     text = "Starting automatically in %d seconds"
-    font = "Jarvis Sans Regular 16"
+    font = "Caelestia Sans Regular 16"
     color = "{hexc('onSurfaceVariant')}"
 }}
 
@@ -142,7 +142,7 @@ message-color: "{hexc('onSurfaceVariant')}"
     width = 600
     align = "left"
     text = "Enter to start, arrow keys to choose, E to edit, C for the command line"
-    font = "Jarvis Sans Regular 16"
+    font = "Caelestia Sans Regular 16"
     color = "{hexc('outline')}"
 }}
 """)
