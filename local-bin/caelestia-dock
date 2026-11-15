@@ -2,6 +2,18 @@
 # Dock ala macOS (nwg-dock-hyprland): tengah bawah, sembunyi otomatis, tanpa tombol launcher.
 # Dijalankan saat login dan diulang setiap ganti skema (postHook di cli.json), karena dock
 # tidak membaca ulang CSS-nya sendiri.
+
+# Penanda aplikasi yang berjalan: titik berwarna onSurface (ikut skema), menggantikan titik cyan bawaan.
+# Dock memuat gambar dari folder data user lebih dulu daripada /usr/share.
+img="${XDG_DATA_HOME:-$HOME/.local/share}/nwg-dock-hyprland/images"
+col=$(jq -r '.colours.onSurface' "$HOME/.local/state/caelestia/scheme.json" 2>/dev/null)
+mkdir -p "$img"
+cp -n /usr/share/nwg-dock-hyprland/images/* "$img"/  # dock hanya memakai folder ini kalau ada, jadi gambar bawaan (task-empty dll) harus ikut tersedia
+dot() { printf '<circle cx="%s" cy="1.19" r="1.1" fill="#%s"/>' "$1" "${col:-ffffff}"; }
+svg() { printf '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="9" viewBox="0 0 12.7 2.38">%s</svg>\n' "$1"; }
+svg "$(dot 6.35)" > "$img/task-single.svg"
+svg "$(dot 4.75)$(dot 7.95)" > "$img/task-multiple.svg"
+
 pkill -x nwg-dock-hyprla 2>/dev/null  # nama proses dipotong 15 karakter
 sleep 0.3
 setsid -f nwg-dock-hyprland -d -hd 0 -nolauncher -i 44 -mb 0 >/dev/null 2>&1

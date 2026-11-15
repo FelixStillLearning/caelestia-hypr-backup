@@ -31,4 +31,4 @@ button {
 button:hover { background-color: alpha(#{{ onSurface.hex }}, 0.12); }
 button:focus { box-shadow: none; }
 
-#active { border-bottom: 2px solid alpha(#{{ primary.hex }}, 0.8); }
+/* Aplikasi berjalan ditandai titik kecil di bawah ikon (dibuat caelestia-dock), tanpa garis aktif */
