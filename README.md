@@ -37,7 +37,7 @@ Paket tambahan:
 ```bash
 yay -S --needed rofi jq libnotify gnome-calculator pwvucontrol inotify-tools ffmpeg \
        equibop-bin spotify spicetify-cli zen-browser-bin visual-studio-code-bin \
-       caelestia-sddm-locklike-git plymouth python-pillow ufw apple_cursor
+       caelestia-sddm-locklike-git plymouth python-pillow ufw apple_cursor whitesur-icon-theme
 ```
 
 Nama paket AUR bisa berubah; cek dengan `yay -Ss <nama>` bila ada yang tidak ditemukan.
@@ -151,7 +151,7 @@ Template di `caelestia/templates/` dirender Caelestia ke `~/.local/state/caelest
 Perubahan lain:
 
 - Jam desktop dan visualizer audio di wallpaper (`caelestia/shell.json`).
-- Gaya macOS: kursor `macOS` (apple_cursor, `cursorTheme` di `caelestia/hypr-vars.lua`) yang tetap tegak dengan shake to find, dan font terminal SF Mono.
+- Gaya macOS: kursor `macOS` (apple_cursor, `cursorTheme` di `caelestia/hypr-vars.lua`) yang tetap tegak dengan shake to find, ikon WhiteSur (`iconThemeDark`/`iconThemeLight` di `caelestia/cli.json`, dipakai GTK dan Qt setiap ganti skema), dan font terminal SF Mono.
 - Spotify menjadi pemutar default di panel media, sehingga aplikasi lain yang mendaftar MPRIS (misalnya Ferdium) tidak mengambil alih.
 - Startpage Zen untuk homepage dan tab baru: jam, kolom pencarian, dan shortcut. Daftar shortcut ada di variabel `LINKS` pada `caelestia/templates/startpage.html`.
 - Share screen: kursor ikut terekam (`cursor:no_hardware_cursors`) dan dialog pemilihan layar tidak muncul dua kali (`hypr/xdph.conf`).
