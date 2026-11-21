@@ -226,6 +226,8 @@ Bagian berikut ditujukan untuk IdeaPad Slim 5 AMD. Di perangkat lain bagian ini 
 | Tab baru Zen tidak memakai startpage | Jalankan `./install.sh --system`, lalu tutup Zen sepenuhnya dan buka ulang |
 | Panel media menampilkan "Unknown artist" | Pilih Spotify lewat tombol pemutar di panel media |
 | Title bar macOS atau kursor dinamis hilang setelah update Hyprland | Jalankan `rebuild-hypr-plugins`. Plugin menolak dimuat bila versinya tidak cocok |
+| Caelestia gagal load: `libsndio.so.7: cannot open shared object file` | `libcava` (AUR) dibangun terhadap sndio lama. Jalankan `yay -S --rebuild libcava` |
+| Caelestia gagal load: `Cannot assign to non-existent property "shadowColor"` | Update `caelestia-shell` dari AUR menimpa plugin di `/usr` dengan versi rilis. Branch `glass` perlu plugin sendiri di `~/.local`: di `~/.local/src/caelestia-shell` jalankan `cmake --build build && cmake --install build`. `env.lua` sudah mengatur `QML_IMPORT_PATH=~/.local/lib/qt6/qml` (berlaku setelah login ulang) |
 
 File `hypr/scheme/current.*`, `rofi/colors.rasi`, dan isi `~/.local/state/caelestia/theme/` dibuat ulang setiap ganti wallpaper; jangan diedit langsung. Pemilih wallpaper membaca `~/Pictures/wallpapers`.
 
